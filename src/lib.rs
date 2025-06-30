@@ -41,11 +41,15 @@ impl<T> Task<T> {
     pub fn new(future: impl Future<Output = T> + 'static + Send) -> Self {
         Self::Some(Box::pin(future))
     }
+}
 
+trait TaskFutExt<T> {
+    async fn run(self, tx: UnboundedSender<T>);
+}
+
+impl<T, F: Future<Output = T>> TaskFutExt<T> for F {
     async fn run(self, tx: UnboundedSender<T>) {
-        if let Self::Some(fut) = self {
-            tx.send(fut.await).unwrap();
-        }
+        tx.send(self.await).unwrap();
     }
 }
 
@@ -128,10 +132,13 @@ impl<State, M: Message + Send + 'static, U: Update<State, M>, V: View<State>> Ap
         while let Some(message) = self.rx.recv().await {
             let should_render = message.should_render();
             let task = self.updater.update(&mut self.state, message);
-            if let Task::Quit = task {
-                break;
+            match task {
+                Task::Some(future) => {
+                    tokio::spawn(future.run(self.tx.clone()));
+                }
+                Task::None => {}
+                Task::Quit => break,
             }
-            tokio::spawn(task.run(self.tx.clone()));
             if should_render {
                 terminal.draw(|f| self.viewer.view(&mut self.state, f))?;
             }
