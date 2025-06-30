@@ -22,9 +22,10 @@ fn update(_state: &mut (), message: Message) -> Task<Message> {
     if let Ok(Event::Key(e)) = message.0
         && matches!(e.code, KeyCode::Char('q') | KeyCode::Esc)
     {
-        ratatui_elm::quit();
+        Task::Quit
+    } else {
+        Task::None
     }
-    Task::None
 }
 
 fn view(_state: &mut (), frame: &mut ratatui::Frame) {
