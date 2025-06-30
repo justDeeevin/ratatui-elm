@@ -4,14 +4,7 @@ use futures::{
     stream::{BoxStream, SelectAll},
 };
 use ratatui::DefaultTerminal;
-use std::sync::{LazyLock, Mutex};
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-
-#[allow(clippy::type_complexity, reason = "IDFC")]
-static QUIT: LazyLock<(UnboundedSender<()>, Mutex<UnboundedReceiver<()>>)> = LazyLock::new(|| {
-    let (tx, rx) = mpsc::unbounded_channel();
-    (tx, Mutex::new(rx))
-});
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 pub trait Update<State, M: Message> {
     fn update(&self, state: &mut State, message: M) -> Task<M>;
@@ -41,6 +34,7 @@ pub trait Message {
 pub enum Task<T> {
     Some(BoxFuture<'static, T>),
     None,
+    Quit,
 }
 
 impl<T> Task<T> {
@@ -114,21 +108,16 @@ impl<State, M: Message + Send + 'static, U: Update<State, M>, V: View<State>> Ap
 
     pub fn run(self) -> std::io::Result<()> {
         let terminal = ratatui::init();
-        let mut rx_quit = QUIT.1.lock().unwrap();
         let res = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .expect("Failed to build tokio runtime")
-            .block_on(self.run_inner(terminal, &mut rx_quit));
+            .block_on(self.run_inner(terminal));
         ratatui::restore();
         res
     }
 
-    async fn run_inner(
-        mut self,
-        mut terminal: DefaultTerminal,
-        rx_quit: &mut UnboundedReceiver<()>,
-    ) -> std::io::Result<()> {
+    async fn run_inner(mut self, mut terminal: DefaultTerminal) -> std::io::Result<()> {
         let subscriptions_tx = self.tx.clone();
         tokio::spawn(async move {
             while let Some(message) = self.subscriptions.next().await {
@@ -136,25 +125,18 @@ impl<State, M: Message + Send + 'static, U: Update<State, M>, V: View<State>> Ap
             }
         });
         terminal.draw(|f| self.viewer.view(&mut self.state, f))?;
-        loop {
-            tokio::select! {
-                Some(()) = rx_quit.recv() => {
-                    break;
-                }
-                Some(message) = self.rx.recv() => {
-                    let should_render = message.should_render();
-                    tokio::spawn(self.updater.update(&mut self.state, message).run(self.tx.clone()));
-                    if should_render {
-                        terminal.draw(|f| self.viewer.view(&mut self.state, f))?;
-                    }
-                }
+        while let Some(message) = self.rx.recv().await {
+            let should_render = message.should_render();
+            let task = self.updater.update(&mut self.state, message);
+            if let Task::Quit = task {
+                break;
+            }
+            tokio::spawn(task.run(self.tx.clone()));
+            if should_render {
+                terminal.draw(|f| self.viewer.view(&mut self.state, f))?;
             }
         }
 
         Ok(())
     }
-}
-
-pub fn quit() {
-    QUIT.0.send(()).unwrap();
 }
