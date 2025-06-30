@@ -1,0 +1,16 @@
+[package]
+name = "ratatui-elm"
+version = "0.1.0"
+edition = "2024"
+authors = ["Devin Droddy <devin@justdeeevin.dev>"]
+license = "MIT"
+repository = "https://github.com/justdeeevin/ratatui-elm"
+description = "A simple Elm architecture framework for ratatui"
+
+[dependencies]
+ratatui = "0.29.0"
+futures = { version = "0.3.31", default-features = false, features = ["alloc"] }
+tokio = { version = "1.45.1", features = ["rt-multi-thread", "sync", "macros"] }
+
+[dev-dependencies]
+crossterm = { version = "0.29.0", features = ["event-stream"] }
