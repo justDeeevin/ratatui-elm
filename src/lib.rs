@@ -1,3 +1,9 @@
+//! A simple Elm architecture framework for ratatui.
+//!
+//! The architecture is heavily inspired by [iced](https://github.com/iced-rs/iced). It provides an ergonomic interface for executing long-running tasks in the background and handling events concurrently, while only rerendering when strictly necessary.
+//!
+//! See [the hello world example](https://github.com/justdeeevin/ratatui-elm/blob/main/examples/hello-world.rs) for a basic usage example.
+
 use futures::{
     Stream, StreamExt,
     future::BoxFuture,
@@ -6,6 +12,10 @@ use futures::{
 use ratatui::DefaultTerminal;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
+/// A trait for a struct that can update the state of the application.
+///
+/// You shouldn't need to manually implement this trait. The provided implementation should be
+/// sufficient.
 pub trait Update<State, M: Message> {
     fn update(&self, state: &mut State, message: M) -> Task<M>;
 }
@@ -16,6 +26,10 @@ impl<State, M: Message, F: Fn(&mut State, M) -> Task<M>> Update<State, M> for F 
     }
 }
 
+/// A trait for a struct that can render the state of the application.
+///
+/// You shouldn't need to manually implement this trait. The provided implementation should be
+/// sufficient.
 pub trait View<State> {
     fn view(&self, state: &mut State, frame: &mut ratatui::Frame);
 }
@@ -26,21 +40,24 @@ impl<State, F: Fn(&mut State, &mut ratatui::Frame)> View<State> for F {
     }
 }
 
+/// A trait for messages that can be sent to the application.
 pub trait Message {
     /// Determines whether the message should trigger a re-render of the UI.
     fn should_render(&self) -> bool;
 }
 
+/// A task to be executed by the runtime.
 pub enum Task<T> {
-    Some(BoxFuture<'static, T>),
+    /// A future to execute in the background. The returned value will be sent back to the
+    /// application.
+    Perform(BoxFuture<'static, T>),
+    /// What it sounds like. Ignored by the runtime.
     None,
+    /// Quit the application.
+    ///
+    /// This simply breaks out of the runtime's main loop and allows program execution to
+    /// continue to completion. It will not cancel any pending tasks.
     Quit,
-}
-
-impl<T> Task<T> {
-    pub fn new(future: impl Future<Output = T> + 'static + Send) -> Self {
-        Self::Some(Box::pin(future))
-    }
 }
 
 trait TaskFutExt<T> {
@@ -53,6 +70,7 @@ impl<T, F: Future<Output = T>> TaskFutExt<T> for F {
     }
 }
 
+/// A ratatui application.
 pub struct App<M: Message, U: Update<State, M>, V: View<State>, State = ()> {
     updater: U,
     viewer: V,
@@ -64,6 +82,7 @@ pub struct App<M: Message, U: Update<State, M>, V: View<State>, State = ()> {
 }
 
 impl<State, M: Message + Send + 'static, U: Update<State, M>, V: View<State>> App<M, U, V, State> {
+    /// Create a new application with default initial state.
     pub fn new(update: U, view: V) -> Self
     where
         State: Default,
@@ -80,6 +99,7 @@ impl<State, M: Message + Send + 'static, U: Update<State, M>, V: View<State>> Ap
         }
     }
 
+    /// Create a new application with a custom initial state.
     pub fn new_with(state: State, update: U, view: V) -> Self {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         Self {
@@ -93,11 +113,13 @@ impl<State, M: Message + Send + 'static, U: Update<State, M>, V: View<State>> Ap
         }
     }
 
+    /// Add a subscription to the application.
     pub fn subscription(mut self, subscription: impl Stream<Item = M> + 'static + Send) -> Self {
         self.subscriptions.push(Box::pin(subscription));
         self
     }
 
+    /// Add multiple subscriptions to the application.
     pub fn subscriptions(
         mut self,
         subscriptions: impl IntoIterator<Item = impl Stream<Item = M> + 'static + Send>,
@@ -110,6 +132,7 @@ impl<State, M: Message + Send + 'static, U: Update<State, M>, V: View<State>> Ap
         self
     }
 
+    /// Run the application.
     pub fn run(self) -> std::io::Result<()> {
         let terminal = ratatui::init();
         let res = tokio::runtime::Builder::new_multi_thread()
@@ -133,7 +156,7 @@ impl<State, M: Message + Send + 'static, U: Update<State, M>, V: View<State>> Ap
             let should_render = message.should_render();
             let task = self.updater.update(&mut self.state, message);
             match task {
-                Task::Some(future) => {
+                Task::Perform(future) => {
                     tokio::spawn(future.run(self.tx.clone()));
                 }
                 Task::None => {}

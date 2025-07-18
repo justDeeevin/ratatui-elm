@@ -29,5 +29,5 @@ fn update(_state: &mut (), message: Message) -> Task<Message> {
 }
 
 fn view(_state: &mut (), frame: &mut ratatui::Frame) {
-    frame.render_widget(Text::raw("droddyrox"), frame.area())
+    frame.render_widget(Text::raw("Hello, world!"), frame.area())
 }
