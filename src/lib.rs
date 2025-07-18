@@ -70,6 +70,13 @@ pub enum Task<T> {
     Quit,
 }
 
+impl<T> Task<T> {
+    /// Create a new task that will be executed in the background.
+    pub fn perform(future: impl Future<Output = T> + 'static + Send) -> Self {
+        Task::Perform(Box::pin(future))
+    }
+}
+
 trait TaskFutExt<T> {
     async fn run(self, tx: UnboundedSender<T>);
 }
