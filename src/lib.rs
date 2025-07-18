@@ -78,7 +78,6 @@ pub struct App<M: Message, U: Update<State, M>, V: View<State>, State = ()> {
     rx: UnboundedReceiver<M>,
     tx: UnboundedSender<M>,
     subscriptions: SelectAll<BoxStream<'static, M>>,
-    _marker: std::marker::PhantomData<M>,
 }
 
 impl<State, M: Message + Send + 'static, U: Update<State, M>, V: View<State>> App<M, U, V, State> {
@@ -95,7 +94,6 @@ impl<State, M: Message + Send + 'static, U: Update<State, M>, V: View<State>> Ap
             tx,
             rx,
             subscriptions: SelectAll::new(),
-            _marker: std::marker::PhantomData,
         }
     }
 
@@ -109,7 +107,6 @@ impl<State, M: Message + Send + 'static, U: Update<State, M>, V: View<State>> Ap
             tx,
             rx,
             subscriptions: SelectAll::new(),
-            _marker: std::marker::PhantomData,
         }
     }
 
