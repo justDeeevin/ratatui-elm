@@ -119,19 +119,6 @@ impl<State, M: Message + Send + 'static, U: Update<State, M>, V: View<State>> Ap
         self
     }
 
-    /// Add multiple subscriptions to the application.
-    pub fn subscriptions(
-        mut self,
-        subscriptions: impl IntoIterator<Item = impl Stream<Item = M> + 'static + Send>,
-    ) -> Self {
-        self.subscriptions.extend(
-            subscriptions
-                .into_iter()
-                .map(|s| Box::pin(s) as BoxStream<'static, M>),
-        );
-        self
-    }
-
     /// Run the application.
     pub fn run(self) -> std::io::Result<()> {
         let terminal = ratatui::init();
