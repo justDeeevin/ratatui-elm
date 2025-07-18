@@ -25,12 +25,12 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 /// You shouldn't need to manually implement this trait. The provided implementation should be
 /// sufficient.
 pub trait Updater<State, M> {
-    fn update(&self, state: &mut State, event: Update<M>) -> (Task<M>, bool);
+    fn update(&self, state: &mut State, update: Update<M>) -> (Task<M>, bool);
 }
 
 impl<State, M, F: Fn(&mut State, Update<M>) -> (Task<M>, bool)> Updater<State, M> for F {
-    fn update(&self, state: &mut State, event: Update<M>) -> (Task<M>, bool) {
-        self(state, event)
+    fn update(&self, state: &mut State, update: Update<M>) -> (Task<M>, bool) {
+        self(state, update)
     }
 }
 
