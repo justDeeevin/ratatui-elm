@@ -3,6 +3,13 @@
 //! The architecture is heavily inspired by [iced](https://github.com/iced-rs/iced). It provides an ergonomic interface for executing long-running tasks in the background and handling events concurrently, while only rerendering when strictly necessary.
 //!
 //! See [the hello world example](https://github.com/justdeeevin/ratatui-elm/blob/main/examples/hello-world.rs) for a basic usage example.
+//!
+//! <div class="warning">
+//! This framework provides a built-in subscription to crossterm events. <strong>Do not manually
+//! construct an instance of <code>EventStream</code></strong>, as crossterm only
+//! sends events to one stream at a time, and the construction of a second stream will cause the
+//! two to fight over each event.
+//! </div>
 
 use crossterm::event::EventStream;
 use futures::{
@@ -41,8 +48,11 @@ impl<State, F: Fn(&mut State, &mut ratatui::Frame)> Viewer<State> for F {
     }
 }
 
+/// A message to be sent to the application.
 pub enum Update<M> {
+    /// A crossterm event.
     Terminal(crossterm::event::Event),
+    /// A message of user-defined type.
     Message(M),
 }
 
