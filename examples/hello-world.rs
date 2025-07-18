@@ -1,33 +1,29 @@
-use crossterm::event::{Event, EventStream, KeyCode};
-use futures::StreamExt;
-use ratatui::text::Text;
-use ratatui_elm::Task;
-
-struct Message(std::io::Result<Event>);
-
-impl ratatui_elm::Message for Message {
-    fn should_render(&self) -> bool {
-        false
-    }
-}
+use crossterm::event::{Event, KeyCode};
+use ratatui::{
+    text::Text,
+    widgets::{Block, Borders},
+};
+use ratatui_elm::{Task, Update};
 
 fn main() {
-    ratatui_elm::App::new(update, view)
-        .subscription(EventStream::new().map(Message))
-        .run()
-        .unwrap();
+    ratatui_elm::App::new(update, view).run().unwrap();
 }
 
-fn update(_state: &mut (), message: Message) -> Task<Message> {
-    if let Ok(Event::Key(e)) = message.0
+fn update(_state: &mut (), event: Update<()>) -> (Task<()>, bool) {
+    let task = if let Update::Terminal(Event::Key(e)) = event
         && matches!(e.code, KeyCode::Char('q') | KeyCode::Esc)
     {
         Task::Quit
     } else {
         Task::None
-    }
+    };
+    (task, false)
 }
 
 fn view(_state: &mut (), frame: &mut ratatui::Frame) {
-    frame.render_widget(Text::raw("Hello, world!"), frame.area())
+    let block = Block::default()
+        .title("Hello, world!")
+        .borders(Borders::ALL);
+    frame.render_widget(&block, frame.area());
+    frame.render_widget(Text::raw("Hello, world!"), block.inner(frame.area()));
 }

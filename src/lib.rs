@@ -4,6 +4,7 @@
 //!
 //! See [the hello world example](https://github.com/justdeeevin/ratatui-elm/blob/main/examples/hello-world.rs) for a basic usage example.
 
+use crossterm::event::EventStream;
 use futures::{
     Stream, StreamExt,
     future::BoxFuture,
@@ -16,13 +17,13 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 ///
 /// You shouldn't need to manually implement this trait. The provided implementation should be
 /// sufficient.
-pub trait Update<State, M: Message> {
-    fn update(&self, state: &mut State, message: M) -> Task<M>;
+pub trait Updater<State, M> {
+    fn update(&self, state: &mut State, event: Update<M>) -> (Task<M>, bool);
 }
 
-impl<State, M: Message, F: Fn(&mut State, M) -> Task<M>> Update<State, M> for F {
-    fn update(&self, state: &mut State, message: M) -> Task<M> {
-        self(state, message)
+impl<State, M, F: Fn(&mut State, Update<M>) -> (Task<M>, bool)> Updater<State, M> for F {
+    fn update(&self, state: &mut State, event: Update<M>) -> (Task<M>, bool) {
+        self(state, event)
     }
 }
 
@@ -30,20 +31,19 @@ impl<State, M: Message, F: Fn(&mut State, M) -> Task<M>> Update<State, M> for F 
 ///
 /// You shouldn't need to manually implement this trait. The provided implementation should be
 /// sufficient.
-pub trait View<State> {
+pub trait Viewer<State> {
     fn view(&self, state: &mut State, frame: &mut ratatui::Frame);
 }
 
-impl<State, F: Fn(&mut State, &mut ratatui::Frame)> View<State> for F {
+impl<State, F: Fn(&mut State, &mut ratatui::Frame)> Viewer<State> for F {
     fn view(&self, state: &mut State, frame: &mut ratatui::Frame) {
         self(state, frame)
     }
 }
 
-/// A trait for messages that can be sent to the application.
-pub trait Message {
-    /// Determines whether the message should trigger a re-render of the UI.
-    fn should_render(&self) -> bool;
+pub enum Update<M> {
+    Terminal(crossterm::event::Event),
+    Message(M),
 }
 
 /// A task to be executed by the runtime.
@@ -71,16 +71,17 @@ impl<T, F: Future<Output = T>> TaskFutExt<T> for F {
 }
 
 /// A ratatui application.
-pub struct App<M: Message, U: Update<State, M>, V: View<State>, State = ()> {
+pub struct App<M, U: Updater<State, M>, V: Viewer<State>, State = ()> {
     updater: U,
     viewer: V,
     state: State,
     rx: UnboundedReceiver<M>,
     tx: UnboundedSender<M>,
+    event_stream: EventStream,
     subscriptions: SelectAll<BoxStream<'static, M>>,
 }
 
-impl<State, M: Message + Send + 'static, U: Update<State, M>, V: View<State>> App<M, U, V, State> {
+impl<State, M: Send + 'static, U: Updater<State, M>, V: Viewer<State>> App<M, U, V, State> {
     /// Create a new application with default initial state.
     pub fn new(update: U, view: V) -> Self
     where
@@ -93,6 +94,7 @@ impl<State, M: Message + Send + 'static, U: Update<State, M>, V: View<State>> Ap
             state: State::default(),
             tx,
             rx,
+            event_stream: EventStream::new(),
             subscriptions: SelectAll::new(),
         }
     }
@@ -106,6 +108,7 @@ impl<State, M: Message + Send + 'static, U: Update<State, M>, V: View<State>> Ap
             state,
             tx,
             rx,
+            event_stream: EventStream::new(),
             subscriptions: SelectAll::new(),
         }
     }
@@ -136,9 +139,20 @@ impl<State, M: Message + Send + 'static, U: Update<State, M>, V: View<State>> Ap
             }
         });
         terminal.draw(|f| self.viewer.view(&mut self.state, f))?;
-        while let Some(message) = self.rx.recv().await {
-            let should_render = message.should_render();
-            let task = self.updater.update(&mut self.state, message);
+        loop {
+            let update = tokio::select! {
+                Some(message) = self.rx.recv() => {
+                    Update::Message(message)
+                }
+                Some(Ok(e)) = self.event_stream.next() => Update::Terminal(e),
+            };
+            let resize = matches!(
+                update,
+                Update::Terminal(crossterm::event::Event::Resize(..))
+            );
+            let out = self.updater.update(&mut self.state, update);
+            let task = out.0;
+            let should_render = resize || out.1;
             match task {
                 Task::Perform(future) => {
                     tokio::spawn(future.run(self.tx.clone()));
