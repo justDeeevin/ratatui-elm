@@ -185,3 +185,11 @@ impl<State, M: Send + 'static, U: Updater<State, M>, V: Viewer<State>> App<M, U,
         Ok(())
     }
 }
+
+#[allow(
+    dead_code,
+    reason = "this is to ensure that my crossterm version matches ratatui's re-export"
+)]
+fn crossterm_version() -> ratatui::crossterm::event::Event {
+    crossterm::event::Event::FocusGained
+}

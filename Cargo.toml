@@ -13,5 +13,5 @@ categories = ["command-line-interface", "asynchronous"]
 [dependencies]
 ratatui = "0.29.0"
 futures = { version = "0.3.31", default-features = false, features = ["alloc"] }
-crossterm = { version = "0.29.0", features = ["event-stream"] }
 tokio = { version = "1.48.0", features = ["rt-multi-thread", "sync", "macros"] }
+crossterm = { version = "0.28.1", features = ["event-stream"] }
