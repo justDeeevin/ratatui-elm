@@ -399,7 +399,7 @@ dependencies = [
 
 [[package]]
 name = "ratatui-elm"
-version = "0.1.0-alpha.4"
+version = "1.0.0"
 dependencies = [
  "crossterm",
  "futures",
