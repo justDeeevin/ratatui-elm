@@ -22,6 +22,8 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 /// A trait for a struct that can update the state of the application.
 ///
+/// Returns a task to be executed along with whether the interface should be re-rendered.
+///
 /// You shouldn't need to manually implement this trait. The provided implementation should be
 /// sufficient.
 pub trait Updater<State, M> {
