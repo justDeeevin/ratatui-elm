@@ -26,10 +26,12 @@ pub trait Backend: ratatui::backend::Backend + Sized {
     fn init() -> Terminal<Self>;
     /// Restore the terminal to its original state.
     fn restore();
+
+    fn handle_resize(&mut self, _width: u16, _height: u16) {}
 }
 
 /// Specific functionality a backend's event must have for ratatui-elm to work.
 pub trait Event {
     /// Check if the event is a resize event.
-    fn is_resize(&self) -> bool;
+    fn resize(&self) -> Option<(u16, u16)>;
 }

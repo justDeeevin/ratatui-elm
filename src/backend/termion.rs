@@ -62,7 +62,7 @@ impl Stream for TermionEventStream {
 }
 
 impl super::Event for Event {
-    fn is_resize(&self) -> bool {
+    fn resize(&self) -> Option<(u16, u16)> {
         static mut LAST_SIZE: LazyLock<(u16, u16)> = LazyLock::new(|| terminal_size().unwrap());
 
         let size = terminal_size().unwrap();
@@ -70,9 +70,9 @@ impl super::Event for Event {
         // called synchronously from the event loop.
         if size != unsafe { *LAST_SIZE } {
             unsafe { *LAST_SIZE = size };
-            true
+            Some(size)
         } else {
-            false
+            None
         }
     }
 }

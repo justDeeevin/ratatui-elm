@@ -17,7 +17,7 @@ fn update(_state: &mut (), event: Update<(), Event>) -> (Task<()>, bool) {
     } else {
         Task::None
     };
-    (task, false)
+    (task, true)
 }
 
 fn view(_state: &mut (), frame: &mut ratatui::Frame) {

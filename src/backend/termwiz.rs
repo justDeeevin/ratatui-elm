@@ -6,7 +6,7 @@ use ratatui::{
         self,
         caps::Capabilities,
         input::InputEvent,
-        terminal::{Terminal as _, UnixTerminal},
+        terminal::{Terminal as _, UnixTerminal, buffered::BufferedTerminal},
     },
 };
 use tokio::sync::mpsc;
@@ -42,6 +42,11 @@ impl super::Backend for TermwizBackend {
             }
         }
     }
+
+    fn handle_resize(&mut self, width: u16, height: u16) {
+        self.buffered_terminal_mut()
+            .resize(width as usize, height as usize);
+    }
 }
 
 fn new_terminal() -> termwiz::Result<UnixTerminal> {
@@ -49,8 +54,15 @@ fn new_terminal() -> termwiz::Result<UnixTerminal> {
 }
 
 impl super::Event for InputEvent {
-    fn is_resize(&self) -> bool {
-        matches!(self, InputEvent::Resized { .. })
+    fn resize(&self) -> Option<(u16, u16)> {
+        if let InputEvent::Resized { cols, rows } = self {
+            BufferedTerminal::new(new_terminal().unwrap())
+                .unwrap()
+                .resize(*cols, *rows);
+            Some((*cols as u16, *rows as u16))
+        } else {
+            None
+        }
     }
 }
 

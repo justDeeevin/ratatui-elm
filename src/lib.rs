@@ -235,13 +235,16 @@ impl<State, M: Send + 'static, U: Updater<State, M, B::Event>, V: Viewer<State>,
                 Some(Ok(e)) = self.event_stream.next() => Update::Terminal(e),
             };
             let resize = if let Update::Terminal(e) = &update {
-                Event::is_resize(e)
+                Event::resize(e)
             } else {
-                false
+                None
             };
+            if let Some((width, height)) = &resize {
+                terminal.backend_mut().handle_resize(*width, *height);
+            }
             let out = self.updater.update(&mut self.state, update);
             let task = out.0;
-            let should_render = resize || out.1;
+            let should_render = resize.is_some() || out.1;
             match task {
                 Task::Perform(future) => {
                     tokio::spawn(future.run(self.tx.clone()));

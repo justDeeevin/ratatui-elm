@@ -18,7 +18,11 @@ impl super::Backend for CrosstermBackend {
 }
 
 impl super::Event for Event {
-    fn is_resize(&self) -> bool {
-        matches!(self, Event::Resize(..))
+    fn resize(&self) -> Option<(u16, u16)> {
+        if let Event::Resize(w, h) = self {
+            Some((*w, *h))
+        } else {
+            None
+        }
     }
 }
