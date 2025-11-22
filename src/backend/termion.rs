@@ -10,7 +10,7 @@ use ratatui::{
     },
 };
 use std::{io::Result, sync::LazyLock};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 
 pub type TermionBackend =
     ratatui::backend::TermionBackend<AlternateScreen<RawTerminal<std::io::Stdout>>>;
@@ -34,27 +34,19 @@ impl super::Backend for TermionBackend {
 
 pub struct TermionEventStream {
     rx: mpsc::UnboundedReceiver<Result<Event>>,
-    killer: Option<oneshot::Sender<()>>,
 }
 
 impl Default for TermionEventStream {
     fn default() -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
-        let (killer, mut killer_rx) = oneshot::channel();
         std::thread::spawn(move || {
             let mut events = std::io::stdin().events();
             loop {
-                if let Ok(()) = killer_rx.try_recv() {
-                    break;
-                }
                 tx.send(events.next().unwrap()).unwrap();
             }
         });
 
-        Self {
-            rx,
-            killer: Some(killer),
-        }
+        Self { rx }
     }
 }
 
@@ -66,12 +58,6 @@ impl Stream for TermionEventStream {
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
         self.rx.poll_recv(cx)
-    }
-}
-
-impl Drop for TermionEventStream {
-    fn drop(&mut self) {
-        self.killer.take().unwrap().send(()).unwrap();
     }
 }
 
