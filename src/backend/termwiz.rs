@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use futures::Stream;
 use ratatui::{
     Terminal,
@@ -11,7 +9,7 @@ use ratatui::{
         terminal::{Terminal as _, UnixTerminal},
     },
 };
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 
 impl super::Backend for TermwizBackend {
     type Event = InputEvent;
@@ -58,40 +56,20 @@ impl super::Event for InputEvent {
 
 pub struct TermwizEventStream {
     rx: mpsc::UnboundedReceiver<termwiz::Result<InputEvent>>,
-    killer: Option<oneshot::Sender<()>>,
 }
 
 impl Default for TermwizEventStream {
     fn default() -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
-        let (killer_tx, mut killer_rx) = oneshot::channel();
-
         let mut terminal = new_terminal().unwrap();
 
         std::thread::spawn(move || {
-            loop {
-                if let Ok(()) = killer_rx.try_recv() {
-                    break;
-                }
-                if let Some(e) = terminal
-                    .poll_input(Some(Duration::from_millis(100)))
-                    .transpose()
-                {
-                    tx.send(e).unwrap();
-                }
+            while let Ok(e) = terminal.poll_input(None).transpose().unwrap() {
+                tx.send(Ok(e)).unwrap();
             }
         });
 
-        Self {
-            rx,
-            killer: Some(killer_tx),
-        }
-    }
-}
-
-impl Drop for TermwizEventStream {
-    fn drop(&mut self) {
-        self.killer.take().unwrap().send(()).unwrap();
+        Self { rx }
     }
 }
 
