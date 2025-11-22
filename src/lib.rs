@@ -11,7 +11,9 @@
 //! two to fight over each event.
 //! </div>
 
-use crossterm::event::EventStream;
+pub mod backend;
+
+use backend::{Backend, Event};
 use futures::{
     Stream, StreamExt,
     future::BoxFuture,
@@ -26,12 +28,14 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 ///
 /// You shouldn't need to manually implement this trait. The provided implementation should be
 /// sufficient.
-pub trait Updater<State, M> {
-    fn update(&self, state: &mut State, update: Update<M>) -> (Task<M>, bool);
+pub trait Updater<State, M, E: Event> {
+    fn update(&self, state: &mut State, update: Update<M, E>) -> (Task<M>, bool);
 }
 
-impl<State, M, F: Fn(&mut State, Update<M>) -> (Task<M>, bool)> Updater<State, M> for F {
-    fn update(&self, state: &mut State, update: Update<M>) -> (Task<M>, bool) {
+impl<State, M, E: Event, F: Fn(&mut State, Update<M, E>) -> (Task<M>, bool)> Updater<State, M, E>
+    for F
+{
+    fn update(&self, state: &mut State, update: Update<M, E>) -> (Task<M>, bool) {
         self(state, update)
     }
 }
@@ -51,9 +55,9 @@ impl<State, F: Fn(&mut State, &mut ratatui::Frame)> Viewer<State> for F {
 }
 
 /// A message to be sent to the application.
-pub enum Update<M> {
+pub enum Update<M, E: Event = ratatui::crossterm::event::Event> {
     /// A crossterm event.
-    Terminal(crossterm::event::Event),
+    Terminal(E),
     /// A message of user-defined type.
     Message(M),
 }
@@ -90,48 +94,77 @@ impl<T, F: Future<Output = T>> TaskFutExt<T> for F {
 }
 
 /// A ratatui application.
-pub struct App<M, U: Updater<State, M>, V: Viewer<State>, State = ()> {
+pub struct App<M, U: Updater<State, M, B::Event>, V: Viewer<State>, B: Backend, State = ()> {
     updater: U,
     viewer: V,
     state: State,
     rx: UnboundedReceiver<M>,
     tx: UnboundedSender<M>,
-    event_stream: EventStream,
+    event_stream: B::Stream,
     subscriptions: SelectAll<BoxStream<'static, M>>,
 }
 
-impl<State, M: Send + 'static, U: Updater<State, M>, V: Viewer<State>> App<M, U, V, State> {
+/// Lets you construct an [`App`] with a custom backend in a more convenient way.
+pub struct AppWithBackend<B>(std::marker::PhantomData<B>);
+
+impl<B: Backend> AppWithBackend<B> {
+    #[allow(clippy::new_ret_no_self)]
     /// Create a new application with default initial state.
-    pub fn new(update: U, view: V) -> Self
-    where
-        State: Default,
-    {
+    pub fn new<State: Default, M, U: Updater<State, M, B::Event>, V: Viewer<State>>(
+        update: U,
+        view: V,
+    ) -> App<M, U, V, B, State> {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        Self {
+        App {
             updater: update,
             viewer: view,
             state: State::default(),
             tx,
             rx,
-            event_stream: EventStream::new(),
+            event_stream: B::Stream::default(),
             subscriptions: SelectAll::new(),
         }
     }
 
     /// Create a new application with a custom initial state.
-    pub fn new_with(state: State, update: U, view: V) -> Self {
+    pub fn new_with<State, M, U: Updater<State, M, B::Event>, V: Viewer<State>>(
+        state: State,
+        update: U,
+        view: V,
+    ) -> App<M, U, V, B, State> {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        Self {
+        App {
             updater: update,
             viewer: view,
             state,
             tx,
             rx,
-            event_stream: EventStream::new(),
+            event_stream: B::Stream::default(),
             subscriptions: SelectAll::new(),
         }
     }
+}
 
+type CrosstermBackend = ratatui::backend::CrosstermBackend<std::io::Stdout>;
+
+impl<State, M, U: Updater<State, M, ratatui::crossterm::event::Event>, V: Viewer<State>>
+    App<M, U, V, CrosstermBackend, State>
+{
+    pub fn new(update: U, view: V) -> Self
+    where
+        State: Default,
+    {
+        AppWithBackend::<CrosstermBackend>::new(update, view)
+    }
+
+    pub fn new_with(state: State, update: U, view: V) -> Self {
+        AppWithBackend::<CrosstermBackend>::new_with(state, update, view)
+    }
+}
+
+impl<State, M: Send + 'static, U: Updater<State, M, B::Event>, V: Viewer<State>, B: Backend>
+    App<M, U, V, B, State>
+{
     /// Add a subscription to the application.
     pub fn subscription(mut self, subscription: impl Stream<Item = M> + 'static + Send) -> Self {
         self.subscriptions.push(Box::pin(subscription));
@@ -165,10 +198,11 @@ impl<State, M: Send + 'static, U: Updater<State, M>, V: Viewer<State>> App<M, U,
                 }
                 Some(Ok(e)) = self.event_stream.next() => Update::Terminal(e),
             };
-            let resize = matches!(
-                update,
-                Update::Terminal(crossterm::event::Event::Resize(..))
-            );
+            let resize = if let Update::Terminal(e) = &update {
+                Event::is_resize(e)
+            } else {
+                false
+            };
             let out = self.updater.update(&mut self.state, update);
             let task = out.0;
             let should_render = resize || out.1;
@@ -186,12 +220,4 @@ impl<State, M: Send + 'static, U: Updater<State, M>, V: Viewer<State>> App<M, U,
 
         Ok(())
     }
-}
-
-#[allow(
-    dead_code,
-    reason = "this is to ensure that my crossterm version matches ratatui's re-export"
-)]
-fn crossterm_version() -> ratatui::crossterm::event::Event {
-    crossterm::event::Event::FocusGained
 }
