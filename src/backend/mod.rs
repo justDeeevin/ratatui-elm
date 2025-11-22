@@ -4,7 +4,7 @@ mod crossterm;
 pub use crossterm::CrosstermBackend;
 
 #[cfg(feature = "termion")]
-mod termion;
+pub mod termion;
 #[cfg(feature = "termion")]
 pub use termion::TermionBackend;
 

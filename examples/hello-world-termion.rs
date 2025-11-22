@@ -1,9 +1,12 @@
 use ratatui::{
-    termion::event::{Event, Key},
+    termion::event::{Event as TermionEvent, Key},
     text::Text,
     widgets::{Block, Borders},
 };
-use ratatui_elm::{Task, Update, backend::TermionBackend};
+use ratatui_elm::{
+    Task, Update,
+    backend::{TermionBackend, termion::Event},
+};
 
 fn main() {
     ratatui_elm::AppWithBackend::<TermionBackend>::new(update, view)
@@ -12,11 +15,14 @@ fn main() {
 }
 
 fn update(_state: &mut (), event: Update<(), Event>) -> (Task<()>, bool) {
-    let task = if let Update::Terminal(Event::Key(Key::Char('q') | Key::Esc)) = event {
-        Task::Quit
-    } else {
-        Task::None
-    };
+    let task =
+        if let Update::Terminal(Event::Termion(TermionEvent::Key(Key::Char('q') | Key::Esc))) =
+            event
+        {
+            Task::Quit
+        } else {
+            Task::None
+        };
     (task, true)
 }
 
