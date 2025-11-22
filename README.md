@@ -1,13 +1,25 @@
-# ratatui-elm
-
 A simple Elm architecture framework for ratatui.
 
-The architecture is heavily inspired by [iced](https://github.com/iced-rs/iced). It provides an ergonomic interface for executing long-running tasks in the background and handling events concurrently, while only rerendering when strictly necessary.
+The architecture is heavily inspired by [iced](https://github.com/iced-rs/iced). It provides an
+ergonomic interface forr executing long-running tasks in the background and handling events
+concurrently, while only re-rendering when strictly necessary.
 
-See [the hello world example](https://github.com/justdeeevin/ratatui-elm/blob/main/examples/hello-world.rs) for a basic usage example.
+See [the hello world
+example](https://github.com/justdeeevin/ratatui-elm/blob/main/examples/hello-world-crossterm.rs)
+for a basic usage example.
 
 > [!WARNING]
-> This framework provides a built-in subscription to crossterm events. **Do not manually
-> construct an instance of `EventStream`**, as crossterm only
-> sends events to one stream at a time, and the construction of a second stream will cause the
-> two to fight over each event.
+> This framework provides a built-in subscription to terminal events. <strong>Do not manually
+> subscribe to events</strong>, as this will cause the two subscriptions to fight over each event.
+
+# Features
+
+This crate works with all three officially supported ratatui backends:
+
+- [crossterm](https://docs.rs/crossterm)—the default
+- [termwiz](https://docs.rs/termwiz)
+- [termion](https://docs.rs/termion)
+
+There is a cargo feature for each backend implementation. **These feature flags are not
+mutually exclusive**, though if you have only one enabled that backend will be used without
+manual specification.
