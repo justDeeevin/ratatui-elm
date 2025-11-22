@@ -23,3 +23,4 @@ cfg-if = "1.0.4"
 default = ["crossterm"]
 crossterm = ["ratatui/crossterm", "dep:crossterm"]
 termwiz = ["ratatui/termwiz"]
+termion = ["ratatui/termion"]
