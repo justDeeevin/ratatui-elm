@@ -1,14 +1,13 @@
 use crossterm::event::KeyEvent;
 use ratatui::{
-    backend::CrosstermBackend,
     crossterm::event::{Event, KeyCode},
     text::Text,
     widgets::{Block, Borders},
 };
-use ratatui_elm::{Task, Update};
+use ratatui_elm::{Task, Update, backend::CrosstermBackend};
 
 fn main() {
-    ratatui_elm::AppWithBackend::<CrosstermBackend<std::io::Stdout>>::new(update, view)
+    ratatui_elm::AppWithBackend::<CrosstermBackend>::new(update, view)
         .run()
         .unwrap();
 }

@@ -1,11 +1,15 @@
 #[cfg(feature = "crossterm")]
 mod crossterm;
+#[cfg(feature = "crossterm")]
+pub use crossterm::CrosstermBackend;
+
 #[cfg(feature = "termion")]
 mod termion;
-#[cfg(feature = "termwiz")]
-mod termwiz;
 #[cfg(feature = "termion")]
 pub use termion::TermionBackend;
+
+#[cfg(feature = "termwiz")]
+mod termwiz;
 
 use ratatui::Terminal;
 
