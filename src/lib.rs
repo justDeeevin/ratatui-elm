@@ -19,8 +19,8 @@ use futures::{
     future::BoxFuture,
     stream::{BoxStream, SelectAll},
 };
-use ratatui::DefaultTerminal;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use ratatui::{Frame, Terminal};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 /// A trait for a struct that can update the state of the application.
 ///
@@ -45,21 +45,41 @@ impl<State, M, E: Event, F: Fn(&mut State, Update<M, E>) -> (Task<M>, bool)> Upd
 /// You shouldn't need to manually implement this trait. The provided implementation should be
 /// sufficient.
 pub trait Viewer<State> {
-    fn view(&self, state: &mut State, frame: &mut ratatui::Frame);
+    fn view(&self, state: &mut State, frame: &mut Frame);
 }
 
-impl<State, F: Fn(&mut State, &mut ratatui::Frame)> Viewer<State> for F {
-    fn view(&self, state: &mut State, frame: &mut ratatui::Frame) {
+impl<State, F: Fn(&mut State, &mut Frame)> Viewer<State> for F {
+    fn view(&self, state: &mut State, frame: &mut Frame) {
         self(state, frame)
     }
 }
 
-/// A message to be sent to the application.
-pub enum Update<M, E: Event = ratatui::crossterm::event::Event> {
-    /// A crossterm event.
-    Terminal(E),
-    /// A message of user-defined type.
-    Message(M),
+cfg_if::cfg_if! {
+    if #[cfg(all(feature = "crossterm", not(feature = "termwiz")))] {
+        /// A message to be sent to the application.
+        pub enum Update<M, E: Event = ratatui::crossterm::event::Event> {
+            /// A crossterm event.
+            Terminal(E),
+            /// A message of user-defined type.
+            Message(M),
+        }
+    } else if #[cfg(all(feature = "termwiz", not(feature = "crossterm")))] {
+        /// A message to be sent to the application.
+        pub enum Update<M, E: Event = termwiz::input::InputEvent> {
+            /// A termion event.
+            Terminal(E),
+            /// A message of user-defined type.
+            Message(M),
+        }
+    } else {
+        /// A message to be sent to the application.
+        pub enum Update<M, E: Event> {
+            /// A crossterm event.
+            Terminal(E),
+            /// A message of user-defined type.
+            Message(M),
+        }
+    }
 }
 
 /// A task to be executed by the runtime.
@@ -100,7 +120,7 @@ pub struct App<M, U: Updater<State, M, B::Event>, V: Viewer<State>, B: Backend, 
     state: State,
     rx: UnboundedReceiver<M>,
     tx: UnboundedSender<M>,
-    event_stream: B::Stream,
+    event_stream: B::EventStream,
     subscriptions: SelectAll<BoxStream<'static, M>>,
 }
 
@@ -114,14 +134,14 @@ impl<B: Backend> AppWithBackend<B> {
         update: U,
         view: V,
     ) -> App<M, U, V, B, State> {
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let (tx, rx) = unbounded_channel();
         App {
             updater: update,
             viewer: view,
             state: State::default(),
             tx,
             rx,
-            event_stream: B::Stream::default(),
+            event_stream: B::EventStream::default(),
             subscriptions: SelectAll::new(),
         }
     }
@@ -132,21 +152,23 @@ impl<B: Backend> AppWithBackend<B> {
         update: U,
         view: V,
     ) -> App<M, U, V, B, State> {
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let (tx, rx) = unbounded_channel();
         App {
             updater: update,
             viewer: view,
             state,
             tx,
             rx,
-            event_stream: B::Stream::default(),
+            event_stream: B::EventStream::default(),
             subscriptions: SelectAll::new(),
         }
     }
 }
 
+#[cfg(all(feature = "crossterm", not(feature = "termwiz")))]
 type CrosstermBackend = ratatui::backend::CrosstermBackend<std::io::Stdout>;
 
+#[cfg(all(feature = "crossterm", not(feature = "termwiz")))]
 impl<State, M, U: Updater<State, M, ratatui::crossterm::event::Event>, V: Viewer<State>>
     App<M, U, V, CrosstermBackend, State>
 {
@@ -173,7 +195,7 @@ impl<State, M: Send + 'static, U: Updater<State, M, B::Event>, V: Viewer<State>,
 
     /// Run the application.
     pub fn run(self) -> std::io::Result<()> {
-        let terminal = ratatui::init();
+        let terminal = B::init();
         let res = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
@@ -183,7 +205,7 @@ impl<State, M: Send + 'static, U: Updater<State, M, B::Event>, V: Viewer<State>,
         res
     }
 
-    async fn run_inner(mut self, mut terminal: DefaultTerminal) -> std::io::Result<()> {
+    async fn run_inner(mut self, mut terminal: Terminal<B>) -> std::io::Result<()> {
         let subscriptions_tx = self.tx.clone();
         tokio::spawn(async move {
             while let Some(message) = self.subscriptions.next().await {

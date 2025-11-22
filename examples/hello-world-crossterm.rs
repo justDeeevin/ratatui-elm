@@ -1,17 +1,23 @@
-use crossterm::event::{Event, KeyCode};
+use crossterm::event::KeyEvent;
 use ratatui::{
+    backend::CrosstermBackend,
+    crossterm::event::{Event, KeyCode},
     text::Text,
     widgets::{Block, Borders},
 };
 use ratatui_elm::{Task, Update};
 
 fn main() {
-    ratatui_elm::App::new(update, view).run().unwrap();
+    ratatui_elm::AppWithBackend::<CrosstermBackend<std::io::Stdout>>::new(update, view)
+        .run()
+        .unwrap();
 }
 
-fn update(_state: &mut (), event: Update<()>) -> (Task<()>, bool) {
-    let task = if let Update::Terminal(Event::Key(e)) = event
-        && matches!(e.code, KeyCode::Char('q') | KeyCode::Esc)
+fn update(_state: &mut (), event: Update<(), Event>) -> (Task<()>, bool) {
+    let task = if let Update::Terminal(Event::Key(KeyEvent {
+        code: KeyCode::Char('q') | KeyCode::Esc,
+        ..
+    })) = event
     {
         Task::Quit
     } else {
