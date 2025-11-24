@@ -1,3 +1,5 @@
+# ratatui-elm
+
 A simple Elm architecture framework for ratatui.
 
 The architecture is heavily inspired by [iced](https://github.com/iced-rs/iced). It provides an
@@ -12,7 +14,7 @@ for a basic usage example.
 > This framework provides a built-in subscription to terminal events. <strong>Do not manually
 > subscribe to events</strong>, as this will cause the two subscriptions to fight over each event.
 
-# Features
+## Features
 
 This crate works with all three officially supported ratatui backends:
 
