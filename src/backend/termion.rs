@@ -55,9 +55,8 @@ impl Default for TermionEventStream {
     fn default() -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
         std::thread::spawn(move || {
-            let mut events = std::io::stdin().events();
-            loop {
-                tx.send(events.next().unwrap()).unwrap();
+            for event in std::io::stdin().events() {
+                tx.send(event).unwrap();
             }
         });
 
