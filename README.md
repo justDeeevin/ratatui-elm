@@ -1,4 +1,5 @@
 # ratatui-elm
+[![crates.io](https://img.shields.io/crates/v/ratatui-elm)](https://crates.io/crates/ratatui-elm)
 
 A simple Elm architecture framework for ratatui.
 
