@@ -1,3 +1,4 @@
+use async_signal::{Signal, Signals};
 use futures::{
     Stream, StreamExt,
     stream::{BoxStream, SelectAll},
@@ -12,7 +13,6 @@ use ratatui::{
         terminal_size,
     },
 };
-use signal_hook_tokio::Signals;
 use std::io::Result;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -65,7 +65,7 @@ impl Default for TermionEventStream {
             UnboundedReceiverStream::new(rx).map(|r| r.map(Event::Termion)),
         ));
         select.push(Box::pin(async_stream::stream! {
-            let mut signals = Signals::new([signal_hook::consts::SIGWINCH]).unwrap();
+            let mut signals = Signals::new([Signal::Winch]).unwrap();
             while signals.next().await.is_some() {
                 let (x, y) = terminal_size()?;
                 yield Ok(Event::Resize(x, y));
