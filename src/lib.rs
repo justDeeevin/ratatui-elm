@@ -27,15 +27,20 @@
 
 pub mod backend;
 
+use std::sync::Arc;
+
 use backend::{Backend, Event};
+use byor::{
+    channel::mpsc::{RuntimeMpsc, UnboundedSender},
+    executor::{Executor, Handle, RuntimeExecutor},
+};
 use cfg_if::cfg_if;
 use futures::{
     Stream, StreamExt,
     future::BoxFuture,
-    stream::{BoxStream, SelectAll},
+    stream::{BoxStream, FusedStream, SelectAll},
 };
 use ratatui::{Frame, Terminal};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 /// A trait for a struct that can update the state of the application.
 ///
@@ -127,37 +132,46 @@ impl<T> Task<T> {
 }
 
 trait TaskFutExt<T> {
-    async fn run(self, tx: UnboundedSender<T>);
+    async fn run(self, tx: impl UnboundedSender<T>);
 }
 
 impl<T, F: Future<Output = T>> TaskFutExt<T> for F {
-    async fn run(self, tx: UnboundedSender<T>) {
+    async fn run(self, tx: impl UnboundedSender<T>) {
         tx.send(self.await).unwrap();
     }
 }
 
 /// A ratatui application.
-pub struct App<M, U: Updater<State, M, B::Event>, V: Viewer<State>, B: Backend, State = ()> {
+pub struct App<
+    M: 'static + Send,
+    U: Updater<State, M, B::Event>,
+    V: Viewer<State>,
+    B: Backend<R>,
+    R: RuntimeExecutor + RuntimeMpsc + Unpin,
+    State = (),
+> {
     updater: U,
     viewer: V,
     state: State,
-    rx: UnboundedReceiver<M>,
-    tx: UnboundedSender<M>,
+    rx: <R as RuntimeMpsc>::UnboundedReceiver<M>,
+    tx: <R as RuntimeMpsc>::UnboundedSender<M>,
     event_stream: B::EventStream,
     subscriptions: SelectAll<BoxStream<'static, M>>,
+    executor: Arc<R::Executor>,
 }
 
 /// Lets you construct an [`App`] with a custom backend in a more convenient way.
-pub struct AppWithBackend<B>(std::marker::PhantomData<B>);
+pub struct AppWithBackend<R, B>(std::marker::PhantomData<(R, B)>);
 
-impl<B: Backend> AppWithBackend<B> {
+impl<R: RuntimeExecutor + RuntimeMpsc + Unpin, B: Backend<R>> AppWithBackend<R, B> {
     #[allow(clippy::new_ret_no_self)]
     /// Create a new application with default initial state.
-    pub fn new<State: Default, M, U: Updater<State, M, B::Event>, V: Viewer<State>>(
+    pub fn new<State: Default, M: Send, U: Updater<State, M, B::Event>, V: Viewer<State>>(
         update: U,
         view: V,
-    ) -> App<M, U, V, B, State> {
-        let (tx, rx) = unbounded_channel();
+    ) -> App<M, U, V, B, R, State> {
+        let (tx, rx) = R::unbounded_channel();
+        let executor = Arc::new(R::Executor::new().expect("Failed to build executor"));
         App {
             updater: update,
             viewer: view,
@@ -166,16 +180,18 @@ impl<B: Backend> AppWithBackend<B> {
             rx,
             event_stream: B::EventStream::default(),
             subscriptions: SelectAll::new(),
+            executor,
         }
     }
 
     /// Create a new application with a custom initial state.
-    pub fn new_with<State, M, U: Updater<State, M, B::Event>, V: Viewer<State>>(
+    pub fn new_with<State, M: Send, U: Updater<State, M, B::Event>, V: Viewer<State>>(
         state: State,
         update: U,
         view: V,
-    ) -> App<M, U, V, B, State> {
-        let (tx, rx) = unbounded_channel();
+    ) -> App<M, U, V, B, R, State> {
+        let (tx, rx) = R::unbounded_channel();
+        let executor = Arc::new(R::Executor::new().expect("Failed to build executor"));
         App {
             updater: update,
             viewer: view,
@@ -184,73 +200,71 @@ impl<B: Backend> AppWithBackend<B> {
             rx,
             event_stream: B::EventStream::default(),
             subscriptions: SelectAll::new(),
+            executor,
         }
     }
 }
 
 cfg_if! {
-    if #[cfg(all(feature = "crossterm", not(feature = "termwiz"), not(feature = "termion")))] {
-        use backend::CrosstermBackend;
-
-        impl<State, M, U: Updater<State, M, ratatui::crossterm::event::Event>, V: Viewer<State>>
-            App<M, U, V, CrosstermBackend, State>
-            {
-                /// Create a new application with default initial state.
-                pub fn new(update: U, view: V) -> Self
-                where
-                    State: Default,
-                {
-                    AppWithBackend::<CrosstermBackend>::new(update, view)
-                }
-
-                /// Create a new application with a custom initial state.
-                pub fn new_with(state: State, update: U, view: V) -> Self {
-                    AppWithBackend::<CrosstermBackend>::new_with(state, update, view)
-                }
-            }
-    } else if #[cfg(all(feature = "termwiz", not(feature = "crossterm"), not(feature = "termion")))] {
-        use ratatui::backend::TermwizBackend;
-
-        impl<State, M, U: Updater<State, M, ratatui::termwiz::input::InputEvent>, V: Viewer<State>>
-            App<M, U, V, TermwizBackend, State>
-            {
-                /// Create a new application with default initial state.
-                pub fn new(update: U, view: V) -> Self
-                where
-                    State: Default,
-                {
-                    AppWithBackend::<TermwizBackend>::new(update, view)
-                }
-
-                /// Create a new application with a custom initial state.
-                pub fn new_with(state: State, update: U, view: V) -> Self {
-                    AppWithBackend::<TermwizBackend>::new_with(state, update, view)
-                }
-            }
-    } else if #[cfg(all(feature = "termion", not(feature = "crossterm"), not(feature = "termwiz")))] {
-        use backend::TermionBackend;
-
-        impl<State, M, U: Updater<State, M, backend::termion::Event>, V: Viewer<State>>
-            App<M, U, V, TermionBackend, State>
-            {
-                /// Create a new application with default initial state.
-                pub fn new(update: U, view: V) -> Self
-                where
-                    State: Default,
-                {
-                    AppWithBackend::<TermionBackend>::new(update, view)
-                }
-
-                /// Create a new application with a custom initial state.
-                pub fn new_with(state: State, update: U, view: V) -> Self {
-                    AppWithBackend::<TermionBackend>::new_with(state, update, view)
-                }
-            }
+    if #[cfg(all(feature = "tokio", not(feature = "smol"), not(feature = "futures")))] {
+        pub type DefaultRuntime = byor::runtime::Tokio;
+    } else if #[cfg(all(feature = "smol", not(feature = "tokio"), not(feature = "futures")))] {
+        pub type DefaultRuntime = byor::runtime::Smol;
+    } else if #[cfg(all(feature = "futures", not(feature = "tokio"), not(feature = "smol")))] {
+        pub type DefaultRuntime = byor::runtime::Futures;
     }
 }
 
-impl<State, M: Send + 'static, U: Updater<State, M, B::Event>, V: Viewer<State>, B: Backend>
-    App<M, U, V, B, State>
+cfg_if! {
+    if #[cfg(all(feature = "crossterm", not(feature = "termwiz"), not(feature = "termion")))] {
+        pub type DefaultBackend = backend::CrosstermBackend;
+        type DefaultEvent = ratatui::crossterm::event::Event;
+    } else if #[cfg(all(feature = "termwiz", not(feature = "crossterm"), not(feature = "termion")))] {
+        pub type DefaultBackend = ratatui::backend::TermwizBackend;
+        type DefaultEvent = ratatui::termwiz::input::InputEvent;
+    } else if #[cfg(all(feature = "termion", not(feature = "crossterm"), not(feature = "termwiz")))] {
+        pub type DefaultBackend = backend::TermionBackend;
+        type DefaultEvent = backend::termion::Event;
+    }
+}
+
+cfg_if! {
+    if #[cfg(all(
+            any(feature = "tokio", feature = "smol", feature = "futures"),
+            not(all(feature = "tokio", feature = "smol", feature = "futures")),
+            any(feature = "crossterm", feature = "termion", feature = "termwiz"),
+            not(all(feature = "crossterm", feature = "termion", feature = "termwiz"))
+        ))] {
+        impl<State, M: Send, U: Updater<State, M, DefaultEvent>, V: Viewer<State>> App<M, U, V, DefaultBackend, DefaultRuntime, State> {
+            /// Create a new application with default initial state.
+            pub fn new(update: U, view: V) -> Self
+            where
+                State: Default,
+            {
+                AppWithBackend::<DefaultRuntime, DefaultBackend>::new(update, view)
+            }
+
+            /// Create a new application with a custom initial state.
+            pub fn new_with(state: State, update: U, view: V) -> Self {
+                AppWithBackend::<DefaultRuntime, DefaultBackend>::new_with(state, update, view)
+            }
+        }
+    }
+}
+
+impl<
+    State: Send + 'static,
+    M: Send + 'static,
+    U: Updater<State, M, B::Event> + Send + 'static,
+    V: Viewer<State> + Send + 'static,
+    B: Backend<R> + Send + 'static,
+    R: RuntimeExecutor + RuntimeMpsc + Unpin + 'static,
+> App<M, U, V, B, R, State>
+where
+    <R as RuntimeMpsc>::UnboundedReceiver<M>: Unpin + Send + Sync + FusedStream,
+    <R as RuntimeMpsc>::UnboundedSender<M>: Unpin + Send + Sync + 'static,
+    <R as RuntimeExecutor>::Executor: Send + Sync,
+    <B as Backend<R>>::EventStream: FusedStream + Send,
 {
     /// Add a subscription to the application.
     pub fn subscription(mut self, subscription: impl Stream<Item = M> + 'static + Send) -> Self {
@@ -261,29 +275,33 @@ impl<State, M: Send + 'static, U: Updater<State, M, B::Event>, V: Viewer<State>,
     /// Run the application.
     pub fn run(self) -> std::io::Result<()> {
         let terminal = B::init();
-        let res = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .expect("Failed to build tokio runtime")
-            .block_on(self.run_inner(terminal));
+        let res = self.executor.clone().block_on(self.run_inner(terminal));
         B::restore();
         res
     }
 
     async fn run_inner(mut self, mut terminal: Terminal<B>) -> std::io::Result<()> {
         let subscriptions_tx = self.tx.clone();
-        tokio::spawn(async move {
-            while let Some(message) = self.subscriptions.next().await {
-                subscriptions_tx.send(message).unwrap();
-            }
-        });
+        self.executor
+            .spawn(async move {
+                while let Some(message) = self.subscriptions.next().await {
+                    subscriptions_tx.send(message).unwrap();
+                }
+            })
+            .detach();
         terminal.draw(|f| self.viewer.view(&mut self.state, f))?;
         loop {
-            let update = tokio::select! {
-                Some(message) = self.rx.recv() => {
-                    Update::Message(message)
+            let update = futures::select! {
+                message = self.rx.next() => {
+                    match message {
+                        Some(message) => Update::Message(message),
+                        None => break,
+                    }
                 }
-                Some(Ok(e)) = self.event_stream.next() => Update::Terminal(e),
+                e = self.event_stream.next() => match e {
+                    Some(Ok(e)) => Update::Terminal(e),
+                    _ => break,
+                },
             };
             let resize = if let Update::Terminal(e) = &update {
                 Event::resize(e)
@@ -298,7 +316,7 @@ impl<State, M: Send + 'static, U: Updater<State, M, B::Event>, V: Viewer<State>,
             let should_render = resize.is_some() || out.1;
             match task {
                 Task::Perform(future) => {
-                    tokio::spawn(future.run(self.tx.clone()));
+                    self.executor.spawn(future.run(self.tx.clone())).detach();
                 }
                 Task::None => {}
                 Task::Quit => break,

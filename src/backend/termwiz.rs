@@ -1,4 +1,7 @@
-use futures::Stream;
+use std::{marker::PhantomData, pin::Pin};
+
+use byor::channel::mpsc::{RuntimeMpsc, UnboundedSender};
+use futures::{Stream, StreamExt};
 use ratatui::{
     Terminal,
     backend::TermwizBackend,
@@ -9,17 +12,19 @@ use ratatui::{
         terminal::{Terminal as _, UnixTerminal, buffered::BufferedTerminal},
     },
 };
-use tokio::sync::mpsc;
-
-impl super::Backend for TermwizBackend {
+impl<R: RuntimeMpsc + Unpin> super::Backend<R> for TermwizBackend
+where
+    <R as RuntimeMpsc>::UnboundedReceiver<termwiz::Result<InputEvent>>: Send + 'static,
+    <R as RuntimeMpsc>::UnboundedSender<termwiz::Result<InputEvent>>: Send + 'static,
+{
     type Event = InputEvent;
     type Error = termwiz::Error;
-    type EventStream = TermwizEventStream;
+    type EventStream = TermwizEventStream<R>;
 
     fn init() -> Terminal<Self> {
         let hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |info| {
-            Self::restore();
+            <Self as super::Backend<R>>::restore();
             hook(info);
         }));
 
@@ -66,13 +71,18 @@ impl super::Event for InputEvent {
     }
 }
 
-pub struct TermwizEventStream {
-    rx: mpsc::UnboundedReceiver<termwiz::Result<InputEvent>>,
+pub struct TermwizEventStream<R: RuntimeMpsc + Unpin> {
+    rx: Pin<Box<R::UnboundedReceiver<termwiz::Result<InputEvent>>>>,
+    _marker: PhantomData<R>,
 }
 
-impl Default for TermwizEventStream {
+impl<R: RuntimeMpsc + Unpin> Default for TermwizEventStream<R>
+where
+    <R as RuntimeMpsc>::UnboundedReceiver<termwiz::Result<InputEvent>>: Send + 'static,
+    <R as RuntimeMpsc>::UnboundedSender<termwiz::Result<InputEvent>>: Send + 'static,
+{
     fn default() -> Self {
-        let (tx, rx) = mpsc::unbounded_channel();
+        let (tx, rx) = R::unbounded_channel();
         let mut terminal = new_terminal().unwrap();
 
         std::thread::spawn(move || {
@@ -81,17 +91,23 @@ impl Default for TermwizEventStream {
             }
         });
 
-        Self { rx }
+        Self {
+            rx: Box::pin(rx),
+            _marker: PhantomData,
+        }
     }
 }
 
-impl Stream for TermwizEventStream {
+impl<R: RuntimeMpsc + Unpin> Stream for TermwizEventStream<R>
+where
+    <R as RuntimeMpsc>::UnboundedReceiver<termwiz::Result<InputEvent>>: Send + 'static,
+{
     type Item = termwiz::Result<InputEvent>;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        self.rx.poll_recv(cx)
+        self.rx.poll_next_unpin(cx)
     }
 }

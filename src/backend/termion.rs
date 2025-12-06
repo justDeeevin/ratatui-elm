@@ -1,4 +1,5 @@
 use async_signal::{Signal, Signals};
+use byor::channel::mpsc::{RuntimeMpsc, UnboundedSender};
 use futures::{
     Stream, StreamExt,
     stream::{BoxStream, SelectAll},
@@ -13,9 +14,7 @@ use ratatui::{
         terminal_size,
     },
 };
-use std::io::Result;
-use tokio::sync::mpsc;
-use tokio_stream::wrappers::UnboundedReceiverStream;
+use std::{io::Result, marker::PhantomData};
 
 pub type TermionBackend =
     ratatui::backend::TermionBackend<AlternateScreen<RawTerminal<std::io::Stdout>>>;
@@ -29,10 +28,14 @@ pub enum Event {
     Resize(u16, u16),
 }
 
-impl super::Backend for TermionBackend {
+impl<R: RuntimeMpsc + Unpin> super::Backend<R> for TermionBackend
+where
+    <R as RuntimeMpsc>::UnboundedReceiver<Result<TermionEvent>>: Send + 'static,
+    <R as RuntimeMpsc>::UnboundedSender<Result<TermionEvent>>: Send + 'static,
+{
     type Event = Event;
     type Error = std::io::Error;
-    type EventStream = TermionEventStream;
+    type EventStream = TermionEventStream<R>;
 
     fn init() -> ratatui::Terminal<Self> {
         let stdout = std::io::stdout()
@@ -47,13 +50,18 @@ impl super::Backend for TermionBackend {
 }
 
 /// An asynchronous stream of termion events.
-pub struct TermionEventStream {
+pub struct TermionEventStream<R: RuntimeMpsc + Unpin> {
     select: SelectAll<BoxStream<'static, Result<Event>>>,
+    _marker: PhantomData<R>,
 }
 
-impl Default for TermionEventStream {
+impl<R: RuntimeMpsc + Unpin> Default for TermionEventStream<R>
+where
+    <R as RuntimeMpsc>::UnboundedReceiver<Result<TermionEvent>>: Send + 'static,
+    <R as RuntimeMpsc>::UnboundedSender<Result<TermionEvent>>: Send + 'static,
+{
     fn default() -> Self {
-        let (tx, rx) = mpsc::unbounded_channel();
+        let (tx, rx) = R::unbounded_channel();
         std::thread::spawn(move || {
             for event in std::io::stdin().events() {
                 tx.send(event).unwrap();
@@ -61,9 +69,7 @@ impl Default for TermionEventStream {
         });
 
         let mut select: SelectAll<BoxStream<'static, Result<Event>>> = SelectAll::new();
-        select.push(Box::pin(
-            UnboundedReceiverStream::new(rx).map(|r| r.map(Event::Termion)),
-        ));
+        select.push(Box::pin(rx.map(|r| r.map(Event::Termion))));
         select.push(Box::pin(async_stream::stream! {
             let mut signals = Signals::new([Signal::Winch]).unwrap();
             while signals.next().await.is_some() {
@@ -72,11 +78,14 @@ impl Default for TermionEventStream {
             }
         }));
 
-        Self { select }
+        Self {
+            select,
+            _marker: PhantomData,
+        }
     }
 }
 
-impl Stream for TermionEventStream {
+impl<R: RuntimeMpsc + Unpin> Stream for TermionEventStream<R> {
     type Item = Result<Event>;
 
     fn poll_next(

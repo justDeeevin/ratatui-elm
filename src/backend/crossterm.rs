@@ -3,7 +3,7 @@ use ratatui::crossterm::event::Event;
 
 pub type CrosstermBackend = ratatui::backend::CrosstermBackend<std::io::Stdout>;
 
-impl super::Backend for CrosstermBackend {
+impl<R> super::Backend<R> for CrosstermBackend {
     type Event = Event;
     type Error = std::io::Error;
     type EventStream = EventStream;

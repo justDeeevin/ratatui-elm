@@ -14,7 +14,7 @@ mod termwiz;
 use ratatui::Terminal;
 
 /// Some extra functionality that a backend must have for ratatui-elm to work.
-pub trait Backend: ratatui::backend::Backend + Sized {
+pub trait Backend<R>: ratatui::backend::Backend + Sized {
     /// The type of event that the backend produces.
     type Event: Event;
     /// The type of error that the backend produces.
