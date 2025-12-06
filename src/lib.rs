@@ -28,6 +28,7 @@
 pub mod backend;
 
 use backend::{Backend, Event};
+use cfg_if::cfg_if;
 use futures::{
     Stream, StreamExt,
     future::BoxFuture,
@@ -68,8 +69,8 @@ impl<State, F: Fn(&mut State, &mut Frame)> Viewer<State> for F {
     }
 }
 
-cfg_if::cfg_if! {
-    if #[cfg(all(feature = "crossterm", not(feature = "termwiz")))] {
+cfg_if! {
+    if #[cfg(all(feature = "crossterm", not(feature = "termwiz"), not(feature = "termion")))] {
         /// A message to be sent to the application.
         pub enum Update<M, E: Event = ratatui::crossterm::event::Event> {
             /// A crossterm event.
@@ -77,9 +78,17 @@ cfg_if::cfg_if! {
             /// A message of user-defined type.
             Message(M),
         }
-    } else if #[cfg(all(feature = "termwiz", not(feature = "crossterm")))] {
+    } else if #[cfg(all(feature = "termwiz", not(feature = "crossterm"), not(feature = "termion")))] {
         /// A message to be sent to the application.
-        pub enum Update<M, E: Event = termwiz::input::InputEvent> {
+        pub enum Update<M, E: Event = ratatui::termwiz::input::InputEvent> {
+            /// A termwiz event.
+            Terminal(E),
+            /// A message of user-defined type.
+            Message(M),
+        }
+    } else if #[cfg(all(feature = "termion", not(feature = "crossterm"), not(feature = "termwiz")))] {
+        /// A message to be sent to the application.
+        pub enum Update<M, E: Event = backend::termion::Event> {
             /// A termion event.
             Terminal(E),
             /// A message of user-defined type.
@@ -88,7 +97,7 @@ cfg_if::cfg_if! {
     } else {
         /// A message to be sent to the application.
         pub enum Update<M, E: Event> {
-            /// A crossterm event.
+            /// A terminal event.
             Terminal(E),
             /// A message of user-defined type.
             Message(M),
@@ -179,22 +188,64 @@ impl<B: Backend> AppWithBackend<B> {
     }
 }
 
-#[cfg(all(feature = "crossterm", not(feature = "termwiz")))]
-type CrosstermBackend = ratatui::backend::CrosstermBackend<std::io::Stdout>;
+cfg_if! {
+    if #[cfg(all(feature = "crossterm", not(feature = "termwiz"), not(feature = "termion")))] {
+        use backend::CrosstermBackend;
 
-#[cfg(all(feature = "crossterm", not(feature = "termwiz")))]
-impl<State, M, U: Updater<State, M, ratatui::crossterm::event::Event>, V: Viewer<State>>
-    App<M, U, V, CrosstermBackend, State>
-{
-    pub fn new(update: U, view: V) -> Self
-    where
-        State: Default,
-    {
-        AppWithBackend::<CrosstermBackend>::new(update, view)
-    }
+        impl<State, M, U: Updater<State, M, ratatui::crossterm::event::Event>, V: Viewer<State>>
+            App<M, U, V, CrosstermBackend, State>
+            {
+                /// Create a new application with default initial state.
+                pub fn new(update: U, view: V) -> Self
+                where
+                    State: Default,
+                {
+                    AppWithBackend::<CrosstermBackend>::new(update, view)
+                }
 
-    pub fn new_with(state: State, update: U, view: V) -> Self {
-        AppWithBackend::<CrosstermBackend>::new_with(state, update, view)
+                /// Create a new application with a custom initial state.
+                pub fn new_with(state: State, update: U, view: V) -> Self {
+                    AppWithBackend::<CrosstermBackend>::new_with(state, update, view)
+                }
+            }
+    } else if #[cfg(all(feature = "termwiz", not(feature = "crossterm"), not(feature = "termion")))] {
+        use ratatui::backend::TermwizBackend;
+
+        impl<State, M, U: Updater<State, M, ratatui::termwiz::input::InputEvent>, V: Viewer<State>>
+            App<M, U, V, TermwizBackend, State>
+            {
+                /// Create a new application with default initial state.
+                pub fn new(update: U, view: V) -> Self
+                where
+                    State: Default,
+                {
+                    AppWithBackend::<TermwizBackend>::new(update, view)
+                }
+
+                /// Create a new application with a custom initial state.
+                pub fn new_with(state: State, update: U, view: V) -> Self {
+                    AppWithBackend::<TermwizBackend>::new_with(state, update, view)
+                }
+            }
+    } else if #[cfg(all(feature = "termion", not(feature = "crossterm"), not(feature = "termwiz")))] {
+        use backend::TermionBackend;
+
+        impl<State, M, U: Updater<State, M, backend::termion::Event>, V: Viewer<State>>
+            App<M, U, V, TermionBackend, State>
+            {
+                /// Create a new application with default initial state.
+                pub fn new(update: U, view: V) -> Self
+                where
+                    State: Default,
+                {
+                    AppWithBackend::<TermionBackend>::new(update, view)
+                }
+
+                /// Create a new application with a custom initial state.
+                pub fn new_with(state: State, update: U, view: V) -> Self {
+                    AppWithBackend::<TermionBackend>::new_with(state, update, view)
+                }
+            }
     }
 }
 
@@ -215,7 +266,7 @@ impl<State, M: Send + 'static, U: Updater<State, M, B::Event>, V: Viewer<State>,
             .build()
             .expect("Failed to build tokio runtime")
             .block_on(self.run_inner(terminal));
-        ratatui::restore();
+        B::restore();
         res
     }
 
