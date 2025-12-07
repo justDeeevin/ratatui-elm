@@ -2,7 +2,7 @@ use async_signal::{Signal, Signals};
 use byor::channel::mpsc::{RuntimeMpsc, UnboundedSender};
 use futures::{
     Stream, StreamExt,
-    stream::{BoxStream, SelectAll},
+    stream::{BoxStream, FusedStream, SelectAll},
 };
 use ratatui::{
     Terminal,
@@ -55,12 +55,12 @@ pub struct TermionEventStream<R: RuntimeMpsc + Unpin> {
     _marker: PhantomData<R>,
 }
 
-impl<R: RuntimeMpsc + Unpin> Default for TermionEventStream<R>
+impl<R: RuntimeMpsc + Unpin> super::New for TermionEventStream<R>
 where
     <R as RuntimeMpsc>::UnboundedReceiver<Result<TermionEvent>>: Send + 'static,
     <R as RuntimeMpsc>::UnboundedSender<Result<TermionEvent>>: Send + 'static,
 {
-    fn default() -> Self {
+    fn new() -> Self {
         let (tx, rx) = R::unbounded_channel();
         std::thread::spawn(move || {
             for event in std::io::stdin().events() {
@@ -93,6 +93,12 @@ impl<R: RuntimeMpsc + Unpin> Stream for TermionEventStream<R> {
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
         self.select.poll_next_unpin(cx)
+    }
+}
+
+impl<R: RuntimeMpsc + Unpin> FusedStream for TermionEventStream<R> {
+    fn is_terminated(&self) -> bool {
+        self.select.is_terminated()
     }
 }
 

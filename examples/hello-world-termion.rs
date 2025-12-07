@@ -4,12 +4,12 @@ use ratatui::{
     widgets::{Block, Borders},
 };
 use ratatui_elm::{
-    Task, Update,
+    Task, Tokio, Update,
     backend::{TermionBackend, termion::Event},
 };
 
 fn main() {
-    ratatui_elm::AppWithBackend::<TermionBackend>::new(update, view)
+    ratatui_elm::AppWithBackend::<Tokio, TermionBackend>::new(update, view)
         .run()
         .unwrap();
 }

@@ -27,9 +27,7 @@
 
 pub mod backend;
 
-use std::sync::Arc;
-
-use backend::{Backend, Event};
+use backend::{Backend, Event, New};
 use byor::{
     channel::mpsc::{RuntimeMpsc, UnboundedSender},
     executor::{Executor, Handle, RuntimeExecutor},
@@ -38,9 +36,10 @@ use cfg_if::cfg_if;
 use futures::{
     Stream, StreamExt,
     future::BoxFuture,
-    stream::{BoxStream, FusedStream, SelectAll},
+    stream::{BoxStream, Fuse, FusedStream, SelectAll},
 };
 use ratatui::{Frame, Terminal};
+use std::sync::Arc;
 
 /// A trait for a struct that can update the state of the application.
 ///
@@ -126,16 +125,16 @@ pub enum Task<T> {
 
 impl<T> Task<T> {
     /// Create a new task that will be executed in the background.
-    pub fn perform(future: impl Future<Output = T> + 'static + Send) -> Self {
+    pub fn perform(future: impl Future<Output = T> + Send + 'static) -> Self {
         Task::Perform(Box::pin(future))
     }
 }
 
-trait TaskFutExt<T> {
+trait TaskFutExt<T: 'static> {
     async fn run(self, tx: impl UnboundedSender<T>);
 }
 
-impl<T, F: Future<Output = T>> TaskFutExt<T> for F {
+impl<T: 'static, F: Future<Output = T>> TaskFutExt<T> for F {
     async fn run(self, tx: impl UnboundedSender<T>) {
         tx.send(self.await).unwrap();
     }
@@ -143,17 +142,17 @@ impl<T, F: Future<Output = T>> TaskFutExt<T> for F {
 
 /// A ratatui application.
 pub struct App<
-    M: 'static + Send,
+    M: 'static,
     U: Updater<State, M, B::Event>,
     V: Viewer<State>,
     B: Backend<R>,
-    R: RuntimeExecutor + RuntimeMpsc + Unpin,
+    R: RuntimeExecutor + RuntimeMpsc,
     State = (),
 > {
     updater: U,
     viewer: V,
     state: State,
-    rx: <R as RuntimeMpsc>::UnboundedReceiver<M>,
+    rx: Fuse<<R as RuntimeMpsc>::UnboundedReceiver<M>>,
     tx: <R as RuntimeMpsc>::UnboundedSender<M>,
     event_stream: B::EventStream,
     subscriptions: SelectAll<BoxStream<'static, M>>,
@@ -163,10 +162,10 @@ pub struct App<
 /// Lets you construct an [`App`] with a custom backend in a more convenient way.
 pub struct AppWithBackend<R, B>(std::marker::PhantomData<(R, B)>);
 
-impl<R: RuntimeExecutor + RuntimeMpsc + Unpin, B: Backend<R>> AppWithBackend<R, B> {
+impl<R: RuntimeExecutor + RuntimeMpsc, B: Backend<R>> AppWithBackend<R, B> {
     #[allow(clippy::new_ret_no_self)]
     /// Create a new application with default initial state.
-    pub fn new<State: Default, M: Send, U: Updater<State, M, B::Event>, V: Viewer<State>>(
+    pub fn new<State: Default, M, U: Updater<State, M, B::Event>, V: Viewer<State>>(
         update: U,
         view: V,
     ) -> App<M, U, V, B, R, State> {
@@ -177,15 +176,15 @@ impl<R: RuntimeExecutor + RuntimeMpsc + Unpin, B: Backend<R>> AppWithBackend<R, 
             viewer: view,
             state: State::default(),
             tx,
-            rx,
-            event_stream: B::EventStream::default(),
+            rx: rx.fuse(),
+            event_stream: B::EventStream::new(),
             subscriptions: SelectAll::new(),
             executor,
         }
     }
 
     /// Create a new application with a custom initial state.
-    pub fn new_with<State, M: Send, U: Updater<State, M, B::Event>, V: Viewer<State>>(
+    pub fn new_with<State, M, U: Updater<State, M, B::Event>, V: Viewer<State>>(
         state: State,
         update: U,
         view: V,
@@ -197,21 +196,28 @@ impl<R: RuntimeExecutor + RuntimeMpsc + Unpin, B: Backend<R>> AppWithBackend<R, 
             viewer: view,
             state,
             tx,
-            rx,
-            event_stream: B::EventStream::default(),
+            rx: rx.fuse(),
+            event_stream: B::EventStream::new(),
             subscriptions: SelectAll::new(),
             executor,
         }
     }
 }
 
+#[cfg(feature = "futures")]
+pub use byor::runtime::Futures;
+#[cfg(feature = "smol")]
+pub use byor::runtime::Smol;
+#[cfg(feature = "tokio")]
+pub use byor::runtime::Tokio;
+
 cfg_if! {
     if #[cfg(all(feature = "tokio", not(feature = "smol"), not(feature = "futures")))] {
-        pub type DefaultRuntime = byor::runtime::Tokio;
+        pub type DefaultRuntime = Tokio;
     } else if #[cfg(all(feature = "smol", not(feature = "tokio"), not(feature = "futures")))] {
-        pub type DefaultRuntime = byor::runtime::Smol;
+        pub type DefaultRuntime = Smol;
     } else if #[cfg(all(feature = "futures", not(feature = "tokio"), not(feature = "smol")))] {
-        pub type DefaultRuntime = byor::runtime::Futures;
+        pub type DefaultRuntime = Futures;
     }
 }
 
@@ -235,7 +241,7 @@ cfg_if! {
             any(feature = "crossterm", feature = "termion", feature = "termwiz"),
             not(all(feature = "crossterm", feature = "termion", feature = "termwiz"))
         ))] {
-        impl<State, M: Send, U: Updater<State, M, DefaultEvent>, V: Viewer<State>> App<M, U, V, DefaultBackend, DefaultRuntime, State> {
+        impl<State, M, U: Updater<State, M, DefaultEvent>, V: Viewer<State>> App<M, U, V, DefaultBackend, DefaultRuntime, State> {
             /// Create a new application with default initial state.
             pub fn new(update: U, view: V) -> Self
             where
@@ -253,21 +259,20 @@ cfg_if! {
 }
 
 impl<
-    State: Send + 'static,
-    M: Send + 'static,
-    U: Updater<State, M, B::Event> + Send + 'static,
-    V: Viewer<State> + Send + 'static,
-    B: Backend<R> + Send + 'static,
-    R: RuntimeExecutor + RuntimeMpsc + Unpin + 'static,
+    State,
+    M,
+    U: Updater<State, M, B::Event>,
+    V: Viewer<State>,
+    B: Backend<R>,
+    R: RuntimeExecutor + RuntimeMpsc,
 > App<M, U, V, B, R, State>
 where
-    <R as RuntimeMpsc>::UnboundedReceiver<M>: Unpin + Send + Sync + FusedStream,
-    <R as RuntimeMpsc>::UnboundedSender<M>: Unpin + Send + Sync + 'static,
-    <R as RuntimeExecutor>::Executor: Send + Sync,
-    <B as Backend<R>>::EventStream: FusedStream + Send,
+    <R as RuntimeMpsc>::UnboundedSender<M>: Send + Sync + 'static,
+    <R as RuntimeMpsc>::UnboundedReceiver<M>: Unpin,
+    <B as Backend<R>>::EventStream: FusedStream,
 {
     /// Add a subscription to the application.
-    pub fn subscription(mut self, subscription: impl Stream<Item = M> + 'static + Send) -> Self {
+    pub fn subscription(mut self, subscription: impl Stream<Item = M> + Send + 'static) -> Self {
         self.subscriptions.push(Box::pin(subscription));
         self
     }

@@ -4,10 +4,10 @@ use ratatui::{
     text::Text,
     widgets::{Block, Borders},
 };
-use ratatui_elm::{Task, Update};
+use ratatui_elm::{Task, Tokio, Update};
 
 fn main() {
-    ratatui_elm::AppWithBackend::<TermwizBackend>::new(update, view)
+    ratatui_elm::AppWithBackend::<Tokio, TermwizBackend>::new(update, view)
         .run()
         .unwrap();
 }

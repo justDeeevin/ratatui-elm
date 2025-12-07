@@ -248,9 +248,9 @@ checksum = "46c5e41b57b8bba42a04676d81cb89e9ee8e859a1a66f80a5a72e1cb76b34d43"
 
 [[package]]
 name = "byor"
-version = "1.0.0-beta.1"
+version = "1.0.0-beta.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14d310525c03b58aafa3eb725cd0e45c82c16e94aafa2b3ed4f3bad436c6157f"
+checksum = "6267db5fd2903b9d8c0fc6e6f3a0439650c0f2f6d045e9375c9065eed1ebad25"
 dependencies = [
  "futures",
  "futures-lite",
@@ -1216,7 +1216,7 @@ dependencies = [
 
 [[package]]
 name = "ratatui-elm"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "async-signal",
  "async-stream",

@@ -1,6 +1,6 @@
 [package]
 name = "ratatui-elm"
-version = "1.2.0"
+version = "1.2.1"
 edition = "2024"
 authors = ["Devin Droddy <devin@justdeeevin.dev>"]
 license = "MIT"
@@ -22,7 +22,7 @@ crossterm = { version = "0.28.1", features = ["event-stream"], optional = true }
 cfg-if = "1.0.4"
 async-signal = { version = "0.2.13", optional = true }
 async-stream = { version = "0.3.6", optional = true }
-byor = { version = "1.0.0-beta.1", default-features = false, features = [
+byor = { version = "1.0.0-beta.2", default-features = false, features = [
   "channel",
   "exec",
 ] }

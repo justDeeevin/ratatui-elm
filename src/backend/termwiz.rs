@@ -1,7 +1,10 @@
 use std::{marker::PhantomData, pin::Pin};
 
 use byor::channel::mpsc::{RuntimeMpsc, UnboundedSender};
-use futures::{Stream, StreamExt};
+use futures::{
+    Stream, StreamExt,
+    stream::{Fuse, FusedStream},
+};
 use ratatui::{
     Terminal,
     backend::TermwizBackend,
@@ -72,16 +75,16 @@ impl super::Event for InputEvent {
 }
 
 pub struct TermwizEventStream<R: RuntimeMpsc + Unpin> {
-    rx: Pin<Box<R::UnboundedReceiver<termwiz::Result<InputEvent>>>>,
+    rx: Pin<Box<Fuse<R::UnboundedReceiver<termwiz::Result<InputEvent>>>>>,
     _marker: PhantomData<R>,
 }
 
-impl<R: RuntimeMpsc + Unpin> Default for TermwizEventStream<R>
+impl<R: RuntimeMpsc + Unpin> super::New for TermwizEventStream<R>
 where
     <R as RuntimeMpsc>::UnboundedReceiver<termwiz::Result<InputEvent>>: Send + 'static,
     <R as RuntimeMpsc>::UnboundedSender<termwiz::Result<InputEvent>>: Send + 'static,
 {
-    fn default() -> Self {
+    fn new() -> Self {
         let (tx, rx) = R::unbounded_channel();
         let mut terminal = new_terminal().unwrap();
 
@@ -92,9 +95,18 @@ where
         });
 
         Self {
-            rx: Box::pin(rx),
+            rx: Box::pin(rx.fuse()),
             _marker: PhantomData,
         }
+    }
+}
+
+impl<R: RuntimeMpsc + Unpin> FusedStream for TermwizEventStream<R>
+where
+    <R as RuntimeMpsc>::UnboundedReceiver<termwiz::Result<InputEvent>>: Send + 'static,
+{
+    fn is_terminated(&self) -> bool {
+        self.rx.is_terminated()
     }
 }
 

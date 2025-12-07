@@ -5,6 +5,7 @@ pub use crossterm::CrosstermBackend;
 
 #[cfg(feature = "termion")]
 pub mod termion;
+use futures::{Stream, stream::FusedStream};
 #[cfg(feature = "termion")]
 pub use termion::TermionBackend;
 
@@ -20,7 +21,7 @@ pub trait Backend<R>: ratatui::backend::Backend + Sized {
     /// The type of error that the backend produces.
     type Error: std::error::Error;
     /// An asynchronous stream of events.
-    type EventStream: futures::Stream<Item = Result<Self::Event, Self::Error>> + Default + Unpin;
+    type EventStream: FusedStream + Stream<Item = Result<Self::Event, Self::Error>> + New + Unpin;
 
     /// Initialize the backend.
     fn init() -> Terminal<Self>;
@@ -34,4 +35,11 @@ pub trait Backend<R>: ratatui::backend::Backend + Sized {
 pub trait Event {
     /// Check if the event is a resize event.
     fn resize(&self) -> Option<(u16, u16)>;
+}
+
+/// Rewrite of [`Default`].
+///
+/// This is only necessary because crossterm's impl of [`Backend::EventStream`] uses [`futures::stream::Fuse`], which doesn't provide a blanked `Default` impl. ☹️
+pub trait New {
+    fn new() -> Self;
 }

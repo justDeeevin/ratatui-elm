@@ -3,10 +3,12 @@ use ratatui::{
     crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers},
     text::{Line, Text},
 };
-use ratatui_elm::{App, Task, Update};
+use ratatui_elm::{AppWithBackend, Task, Tokio, Update, backend::CrosstermBackend};
 
 fn main() {
-    App::new(update, view).run().unwrap();
+    AppWithBackend::<Tokio, CrosstermBackend>::new(update, view)
+        .run()
+        .unwrap();
 }
 
 fn view(state: &mut Vec<KeyEvent>, frame: &mut Frame) {
@@ -14,7 +16,7 @@ fn view(state: &mut Vec<KeyEvent>, frame: &mut Frame) {
     frame.render_widget(text, frame.area());
 }
 
-fn update(state: &mut Vec<KeyEvent>, update: Update<()>) -> (Task<()>, bool) {
+fn update(state: &mut Vec<KeyEvent>, update: Update<(), Event>) -> (Task<()>, bool) {
     let render = match update {
         Update::Terminal(Event::Key(KeyEvent {
             code: KeyCode::Char('c'),
