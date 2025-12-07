@@ -11,6 +11,7 @@ fn main() {
         .unwrap();
 }
 
+#[allow(clippy::ptr_arg, reason = "required for type inference to pass")]
 fn view(state: &mut Vec<KeyEvent>, frame: &mut Frame) {
     let text = Text::from_iter(state.iter().map(|key| Line::raw(format!("{key:?}"))));
     frame.render_widget(text, frame.area());

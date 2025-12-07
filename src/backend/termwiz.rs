@@ -75,6 +75,7 @@ impl super::Event for InputEvent {
 }
 
 pub struct TermwizEventStream<R: RuntimeMpsc + Unpin> {
+    #[allow(clippy::type_complexity)]
     rx: Pin<Box<Fuse<R::UnboundedReceiver<termwiz::Result<InputEvent>>>>>,
     _marker: PhantomData<R>,
 }
