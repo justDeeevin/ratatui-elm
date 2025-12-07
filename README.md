@@ -4,7 +4,7 @@
 A simple Elm architecture framework for ratatui.
 
 The architecture is heavily inspired by [iced](https://github.com/iced-rs/iced). It provides an
-ergonomic interface forr executing long-running tasks in the background and handling events
+ergonomic interface for executing long-running tasks in the background and handling events
 concurrently, while only re-rendering when strictly necessary.
 
 See [the hello world
