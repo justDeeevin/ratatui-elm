@@ -17,11 +17,12 @@ for a basic usage example.
 
 ## Features
 
-This crate works with all three officially supported ratatui backends:
+This crate works with all four officially supported ratatui backends:
 
 - [crossterm](https://docs.rs/crossterm)—the default
 - [termwiz](https://docs.rs/termwiz)
 - [termion](https://docs.rs/termion)
+- [termina](https://docs.rs/termina)
 
 There is a cargo feature for each backend implementation. **These feature flags are not
 mutually exclusive**, though if you have only one enabled that backend will be used without
@@ -30,7 +31,7 @@ manual specification.
 Similarly, this crate can be used with any async runtime that is integrated with [byor](https://docs.rs/byor). Three
 runtimes are provided:
 
-- [tokio](https://docs.rs/tokio)
+- [tokio](https://docs.rs/tokio)—the default
 - [smol](https://docs.rs/smol)
 - [futures](https://docs.rs/futures)
 

@@ -27,6 +27,9 @@ ratatui = { version = "0.30.2", default-features = false, optional = true, featu
 ] }
 crossterm = { version = "0.29.0", optional = true, features = ["event-stream"] }
 
+ratatui-termina = { version = "0.1.0", optional = true }
+termina = { version = "0.3.3", optional = true, features = ["event-stream"] }
+
 ratatui-termion = { version = "0.1.2", optional = true }
 termion = { version = "4.0.6", optional = true }
 async-signal = { version = "0.2.14", optional = true }
@@ -42,6 +45,7 @@ ratatui-widgets = "0.3.2"
 default = ["crossterm", "tokio"]
 
 crossterm = ["dep:ratatui", "dep:crossterm"]
+termina = ["dep:ratatui-termina", "dep:termina"]
 termion = [
   "dep:ratatui-termion",
   "dep:termion",
@@ -50,6 +54,6 @@ termion = [
 ]
 termwiz = ["dep:ratatui-termwiz", "dep:termwiz"]
 
-tokio = ["byor/tokio"]
-smol = ["byor/smol"]
 futures = ["byor/futures"]
+smol = ["byor/smol"]
+tokio = ["byor/tokio"]

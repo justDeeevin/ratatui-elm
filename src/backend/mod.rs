@@ -10,8 +10,11 @@ pub use termion::TermionBackend;
 
 #[cfg(feature = "termwiz")]
 mod termwiz;
-//
-// TODO: termina
+
+#[cfg(feature = "termina")]
+mod termina;
+#[cfg(feature = "termina")]
+pub use termina::TerminaBackend;
 
 use futures::{Stream, stream::FusedStream};
 use ratatui_core::terminal::Terminal;
@@ -37,8 +40,6 @@ pub trait Event {
     fn resize(&self) -> Option<(u16, u16)>;
 }
 
-/// Rewrite of [`Default`].
-///
 /// This is only necessary because crossterm's impl of [`Backend::EventStream`] uses [`futures::stream::Fuse`], which doesn't provide a blanket `Default` impl. ☹️
 pub trait New {
     fn new() -> Self;

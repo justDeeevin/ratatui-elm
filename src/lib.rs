@@ -15,11 +15,12 @@
 //!
 //! # Features
 //!
-//! This crate works with all three officially supported ratatui backends:
+//! This crate works with all four officially supported ratatui backends:
 //!
 //! - [crossterm](https://docs.rs/crossterm)—the default
 //! - [termwiz](https://docs.rs/termwiz)
 //! - [termion](https://docs.rs/termion)
+//! - [termina](https://docs.rs/termina)
 //!
 //! There is a cargo feature for each backend implementation. **These feature flags are not
 //! mutually exclusive**, though if you have only one enabled that backend will be used without
@@ -28,7 +29,7 @@
 //! Similarly, this crate can be used with any async runtime that is integrated with [byor]. Three
 //! runtimes are provided:
 //!
-//! - [tokio](https://docs.rs/tokio)
+//! - [tokio](https://docs.rs/tokio)—the default
 //! - [smol](https://docs.rs/smol)
 //! - [futures](https://docs.rs/futures)
 //!
@@ -82,40 +83,47 @@ impl<State, F: Fn(&mut State, &mut Frame)> Viewer<State> for F {
     }
 }
 
-cfg_if! {
-    if #[cfg(all(feature = "crossterm", not(feature = "termwiz"), not(feature = "termion")))] {
-        /// A message to be sent to the application.
-        pub enum Update<M, E: Event = crossterm::event::Event> {
-            /// A crossterm event.
-            Terminal(E),
-            /// A message of user-defined type.
-            Message(M),
-        }
-    } else if #[cfg(all(feature = "termwiz", not(feature = "crossterm"), not(feature = "termion")))] {
-        /// A message to be sent to the application.
-        pub enum Update<M, E: Event = termwiz::input::InputEvent> {
-            /// A termwiz event.
-            Terminal(E),
-            /// A message of user-defined type.
-            Message(M),
-        }
-    } else if #[cfg(all(feature = "termion", not(feature = "crossterm"), not(feature = "termwiz")))] {
-        /// A message to be sent to the application.
-        pub enum Update<M, E: Event = backend::termion::Event> {
-            /// A termion event.
-            Terminal(E),
-            /// A message of user-defined type.
-            Message(M),
-        }
-    } else {
-        /// A message to be sent to the application.
-        pub enum Update<M, E: Event> {
-            /// A terminal event.
-            Terminal(E),
-            /// A message of user-defined type.
-            Message(M),
-        }
-    }
+pub enum Update<M, E: Event = DefaultEvent> {
+    #[cfg_attr(
+        all(
+            feature = "crossterm",
+            not(any(feature = "termina", feature = "termion", feature = "termwiz"))
+        ),
+        doc = "A crossterm event."
+    )]
+    #[cfg_attr(
+        all(
+            feature = "termina",
+            not(any(feature = "crossterm", feature = "termion", feature = "termwiz"))
+        ),
+        doc = "A termina event."
+    )]
+    #[cfg_attr(
+        all(
+            feature = "termion",
+            not(any(feature = "crossterm", feature = "termina", feature = "termwiz"))
+        ),
+        doc = "A termion event."
+    )]
+    #[cfg_attr(
+        all(
+            feature = "termwiz",
+            not(any(feature = "crossterm", feature = "termina", feature = "termion"))
+        ),
+        doc = "A termwiz event."
+    )]
+    #[cfg_attr(
+        not(any(
+            feature = "crossterm",
+            feature = "termina",
+            feature = "termion",
+            feature = "termwiz"
+        )),
+        doc = "A terminal event."
+    )]
+    Terminal(E),
+    /// A message of user-defined type.
+    Message(M),
 }
 
 /// A task to be executed by the runtime.
@@ -217,49 +225,79 @@ impl<R: RuntimeExecutor + RuntimeMpsc, B: Backend<R>> AppWithBackend<R, B> {
 pub use byor::runtime;
 
 cfg_if! {
-    if #[cfg(all(feature = "tokio", not(feature = "smol"), not(feature = "futures")))] {
-        pub type DefaultRuntime = runtime::Tokio;
-    } else if #[cfg(all(feature = "smol", not(feature = "tokio"), not(feature = "futures")))] {
-        pub type DefaultRuntime = runtime::Smol;
-    } else if #[cfg(all(feature = "futures", not(feature = "tokio"), not(feature = "smol")))] {
+    if #[cfg(all(feature = "futures", not(any(feature = "smol", feature = "tokio"))))] {
         pub type DefaultRuntime = runtime::Futures;
+    } else if #[cfg(all(feature = "smol", not(any(feature = "futures", feature = "tokio"))))] {
+        pub type DefaultRuntime = runtime::Smol;
+    } else if #[cfg(all(feature = "tokio", not(any(feature = "futures", feature = "smol"))))] {
+        pub type DefaultRuntime = runtime::Tokio;
     }
 }
 
 cfg_if! {
-    if #[cfg(all(feature = "crossterm", not(feature = "termwiz"), not(feature = "termion")))] {
+    if #[cfg(all(feature = "crossterm", not(any(feature = "termina", feature = "termion", feature = "termwiz"))))] {
         pub type DefaultBackend = backend::CrosstermBackend;
-        type DefaultEvent = crossterm::event::Event;
-    } else if #[cfg(all(feature = "termwiz", not(feature = "crossterm"), not(feature = "termion")))] {
-        pub type DefaultBackend = ratatui_termwiz::TermwizBackend;
-        type DefaultEvent = termwiz::input::InputEvent;
-    } else if #[cfg(all(feature = "termion", not(feature = "crossterm"), not(feature = "termwiz")))] {
+        pub type DefaultEvent = crossterm::event::Event;
+    } else if #[cfg(all(feature = "termina", not(any(feature = "crossterm", feature = "termion", feature = "termwiz"))))] {
+        pub type DefaultBackend = backend::TerminaBackend;
+        pub type DefaultEvent = termina::Event;
+    } else if #[cfg(all(feature = "termion", not(any(feature = "crossterm", feature = "termina", feature = "termwiz"))))] {
         pub type DefaultBackend = backend::TermionBackend;
-        type DefaultEvent = backend::termion::Event;
-    }
-}
+        pub type DefaultEvent = backend::termion::Event;
+    } else if #[cfg(all(feature = "termwiz", not(any(feature = "crossterm", feature = "termina", feature = "termion"))))] {
+        pub type DefaultBackend = ratatui_termwiz::TermwizBackend;
+        pub type DefaultEvent = termwiz::input::InputEvent;
+    } else {
+        /// More than one backend is enabled. An event type must be specified
+        pub enum DefaultEvent {}
 
-cfg_if! {
-    if #[cfg(all(
-            any(feature = "tokio", feature = "smol", feature = "futures"),
-            not(all(feature = "tokio", feature = "smol", feature = "futures")),
-            any(feature = "crossterm", feature = "termion", feature = "termwiz"),
-            not(all(feature = "crossterm", feature = "termion", feature = "termwiz"))
-        ))] {
-        impl<State, M, U: Updater<State, M, DefaultEvent>, V: Viewer<State>> App<M, U, V, DefaultBackend, DefaultRuntime, State> {
-            /// Create a new application with default initial state.
-            pub fn new(update: U, view: V) -> Self
-            where
-                State: Default,
-            {
-                AppWithBackend::<DefaultRuntime, DefaultBackend>::new(update, view)
-            }
-
-            /// Create a new application with a custom initial state.
-            pub fn new_with(state: State, update: U, view: V) -> Self {
-                AppWithBackend::<DefaultRuntime, DefaultBackend>::new_with(state, update, view)
+        impl backend::Event for DefaultEvent {
+            fn resize(&self) -> Option<(u16, u16)> {
+                panic!("No event type specified")
             }
         }
+    }
+}
+
+#[cfg(all(
+    any(
+        all(
+            feature = "crossterm",
+            not(any(feature = "termina", feature = "termion", feature = "termwiz"))
+        ),
+        all(
+            feature = "termina",
+            not(any(feature = "crossterm", feature = "termion", feature = "termwiz"))
+        ),
+        all(
+            feature = "termion",
+            not(any(feature = "crossterm", feature = "termina", feature = "termwiz"))
+        ),
+        all(
+            feature = "termwiz",
+            not(any(feature = "crossterm", feature = "termina", feature = "termion"))
+        )
+    ),
+    any(
+        all(feature = "futures", not(any(feature = "smol", feature = "tokio"))),
+        all(feature = "smol", not(any(feature = "futures", feature = "tokio"))),
+        all(feature = "tokio", not(any(feature = "futures", feature = "smol")))
+    )
+))]
+impl<State, M, U: Updater<State, M, DefaultEvent>, V: Viewer<State>>
+    App<M, U, V, DefaultBackend, DefaultRuntime, State>
+{
+    /// Create a new application with default initial state.
+    pub fn new(update: U, view: V) -> Self
+    where
+        State: Default,
+    {
+        AppWithBackend::<DefaultRuntime, DefaultBackend>::new(update, view)
+    }
+
+    /// Create a new application with a custom initial state.
+    pub fn new_with(state: State, update: U, view: V) -> Self {
+        AppWithBackend::<DefaultRuntime, DefaultBackend>::new_with(state, update, view)
     }
 }
 
