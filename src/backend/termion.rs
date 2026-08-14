@@ -4,22 +4,19 @@ use futures::{
     Stream, StreamExt,
     stream::{BoxStream, FusedStream, SelectAll},
 };
-use ratatui::{
-    Terminal,
-    termion::{
-        event::Event as TermionEvent,
-        input::TermRead,
-        raw::{IntoRawMode, RawTerminal},
-        screen::{AlternateScreen, IntoAlternateScreen},
-        terminal_size,
-    },
-};
+use ratatui_core::terminal::Terminal;
 use std::{io, marker::PhantomData, task};
+use termion::{
+    event::Event as TermionEvent,
+    input::TermRead,
+    raw::{IntoRawMode, RawTerminal},
+    screen::{AlternateScreen, IntoAlternateScreen},
+    terminal_size,
+};
 
-pub type TermionBackend =
-    ratatui::backend::TermionBackend<AlternateScreen<RawTerminal<io::Stdout>>>;
+pub type TermionBackend = ratatui_termion::TermionBackend<AlternateScreen<RawTerminal<io::Stdout>>>;
 
-type Result<T, E = <TermionBackend as ratatui::backend::Backend>::Error> =
+type Result<T, E = <TermionBackend as ratatui_core::backend::Backend>::Error> =
     std::result::Result<T, E>;
 
 /// Termion events _or_ resize events.
@@ -39,7 +36,7 @@ where
     type Event = Event;
     type EventStream = TermionEventStream<R>;
 
-    fn init() -> ratatui::Terminal<Self> {
+    fn init() -> ratatui_core::terminal::Terminal<Self> {
         let stdout = io::stdout()
             .into_raw_mode()
             .unwrap()

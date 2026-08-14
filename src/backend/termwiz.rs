@@ -3,19 +3,16 @@ use futures::{
     Stream, StreamExt,
     stream::{Fuse, FusedStream},
 };
-use ratatui::{
-    Terminal,
-    backend::TermwizBackend,
-    termwiz::{
-        self,
-        caps::Capabilities,
-        input::InputEvent,
-        terminal::{Terminal as _, UnixTerminal, buffered::BufferedTerminal},
-    },
-};
+use ratatui_core::terminal::Terminal;
+use ratatui_termwiz::TermwizBackend;
 use std::{marker::PhantomData, pin::Pin, task};
+use termwiz::{
+    caps::Capabilities,
+    input::InputEvent,
+    terminal::{Terminal as _, UnixTerminal, buffered::BufferedTerminal},
+};
 
-type Result<T, E = <TermwizBackend as ratatui::backend::Backend>::Error> =
+type Result<T, E = <TermwizBackend as ratatui_core::backend::Backend>::Error> =
     std::result::Result<T, E>;
 
 impl<R: RuntimeMpsc + Unpin> super::Backend<R> for TermwizBackend

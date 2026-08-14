@@ -1,8 +1,5 @@
-use ratatui::{
-    Frame,
-    crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers},
-    text::{Line, Text},
-};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use ratatui_core::text::{Line, Text};
 use ratatui_elm::{AppWithBackend, Task, Update, backend::CrosstermBackend, runtime::Tokio};
 
 fn main() {
@@ -12,7 +9,7 @@ fn main() {
 }
 
 #[allow(clippy::ptr_arg, reason = "required for type inference to pass")]
-fn view(state: &mut Vec<KeyEvent>, frame: &mut Frame) {
+fn view(state: &mut Vec<KeyEvent>, frame: &mut ratatui_core::terminal::Frame) {
     let text = Text::from_iter(state.iter().map(|key| Line::raw(format!("{key:?}"))));
     frame.render_widget(text, frame.area());
 }

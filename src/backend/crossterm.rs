@@ -1,6 +1,5 @@
-use crossterm::event::EventStream;
+use crossterm::event::{Event, EventStream};
 use futures::{StreamExt, stream::Fuse};
-use ratatui::crossterm::event::Event;
 
 pub type CrosstermBackend = ratatui::backend::CrosstermBackend<std::io::Stdout>;
 
@@ -8,7 +7,7 @@ impl<R> super::Backend<R> for CrosstermBackend {
     type Event = Event;
     type EventStream = Fuse<EventStream>;
 
-    fn init() -> ratatui::Terminal<Self> {
+    fn init() -> ratatui_core::terminal::Terminal<Self> {
         ratatui::init()
     }
 

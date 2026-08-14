@@ -1,12 +1,11 @@
-use ratatui::{
-    termion::event::{Event as TermionEvent, Key},
-    text::Text,
-    widgets::{Block, Borders},
-};
+use ratatui_core::text::Text;
 use ratatui_elm::{
-    Task, runtime::Tokio, Update,
+    Task, Update,
     backend::{TermionBackend, termion::Event},
+    runtime::Tokio,
 };
+use ratatui_widgets::{block::Block, borders::Borders};
+use termion::event::{Event as TermionEvent, Key};
 
 fn main() {
     ratatui_elm::AppWithBackend::<Tokio, TermionBackend>::new(update, view)
@@ -26,7 +25,7 @@ fn update(_state: &mut (), event: Update<(), Event>) -> (Task<()>, bool) {
     (task, true)
 }
 
-fn view(_state: &mut (), frame: &mut ratatui::Frame) {
+fn view(_state: &mut (), frame: &mut ratatui_core::terminal::Frame) {
     let block = Block::default()
         .title("Hello, world!")
         .borders(Borders::ALL);

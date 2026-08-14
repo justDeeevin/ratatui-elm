@@ -1281,8 +1281,6 @@ dependencies = [
  "instability",
  "ratatui-core",
  "ratatui-crossterm",
- "ratatui-termion",
- "ratatui-termwiz",
  "ratatui-widgets",
  "serde",
 ]
@@ -1331,6 +1329,24 @@ dependencies = [
  "crossterm",
  "futures",
  "ratatui",
+ "ratatui-core",
+ "ratatui-termina",
+ "ratatui-termion",
+ "ratatui-termwiz",
+ "ratatui-widgets",
+ "termion",
+ "termwiz",
+]
+
+[[package]]
+name = "ratatui-termina"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0bf912d9e66f057a759d92e386a280ea886b352ab757d6ac4d653c7ed2c43c2"
+dependencies = [
+ "instability",
+ "ratatui-core",
+ "termina",
 ]
 
 [[package]]
@@ -1639,6 +1655,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "termina"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9048a889effe34a5cddee0af7f53285198b16dca3be510858d38dfdb3e62a04e"
+dependencies = [
+ "bitflags 2.13.1",
+ "parking_lot",
+ "rustix",
+ "signal-hook",
+ "windows-sys",
 ]
 
 [[package]]

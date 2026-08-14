@@ -1,10 +1,8 @@
-use ratatui::{
-    backend::TermwizBackend,
-    termwiz::input::{InputEvent, KeyCode, KeyEvent},
-    text::Text,
-    widgets::{Block, Borders},
-};
-use ratatui_elm::{Task, runtime::Tokio, Update};
+use ratatui_core::text::Text;
+use ratatui_elm::{Task, Update, runtime::Tokio};
+use ratatui_termwiz::TermwizBackend;
+use ratatui_widgets::{block::Block, borders::Borders};
+use termwiz::input::{InputEvent, KeyCode, KeyEvent};
 
 fn main() {
     ratatui_elm::AppWithBackend::<Tokio, TermwizBackend>::new(update, view)
@@ -25,7 +23,7 @@ fn update(_state: &mut (), event: Update<(), InputEvent>) -> (Task<()>, bool) {
     (task, true)
 }
 
-fn view(_state: &mut (), frame: &mut ratatui::Frame) {
+fn view(_state: &mut (), frame: &mut ratatui_core::terminal::Frame) {
     let block = Block::default()
         .title("Hello, world!")
         .borders(Borders::ALL);

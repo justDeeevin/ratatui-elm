@@ -5,19 +5,19 @@ pub use crossterm::CrosstermBackend;
 
 #[cfg(feature = "termion")]
 pub mod termion;
-use futures::{Stream, stream::FusedStream};
 #[cfg(feature = "termion")]
 pub use termion::TermionBackend;
 
 #[cfg(feature = "termwiz")]
 mod termwiz;
-
+//
 // TODO: termina
 
-use ratatui::Terminal;
+use futures::{Stream, stream::FusedStream};
+use ratatui_core::terminal::Terminal;
 
 /// Some extra functionality that a backend must have for ratatui-elm to work.
-pub trait Backend<Runtime>: ratatui::backend::Backend + Sized {
+pub trait Backend<Runtime>: ratatui_core::backend::Backend + Sized {
     /// The type of event that the backend produces.
     type Event: Event;
     /// An asynchronous stream of events.

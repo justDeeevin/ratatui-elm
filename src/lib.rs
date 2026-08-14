@@ -47,7 +47,7 @@ use futures::{
     future::BoxFuture,
     stream::{BoxStream, Fuse, FusedStream, SelectAll},
 };
-use ratatui::{Frame, Terminal};
+use ratatui_core::terminal::{Frame, Terminal};
 use std::sync::Arc;
 
 /// A trait for a struct that can update the state of the application.
@@ -85,7 +85,7 @@ impl<State, F: Fn(&mut State, &mut Frame)> Viewer<State> for F {
 cfg_if! {
     if #[cfg(all(feature = "crossterm", not(feature = "termwiz"), not(feature = "termion")))] {
         /// A message to be sent to the application.
-        pub enum Update<M, E: Event = ratatui::crossterm::event::Event> {
+        pub enum Update<M, E: Event = crossterm::event::Event> {
             /// A crossterm event.
             Terminal(E),
             /// A message of user-defined type.
@@ -93,7 +93,7 @@ cfg_if! {
         }
     } else if #[cfg(all(feature = "termwiz", not(feature = "crossterm"), not(feature = "termion")))] {
         /// A message to be sent to the application.
-        pub enum Update<M, E: Event = ratatui::termwiz::input::InputEvent> {
+        pub enum Update<M, E: Event = termwiz::input::InputEvent> {
             /// A termwiz event.
             Terminal(E),
             /// A message of user-defined type.
@@ -229,10 +229,10 @@ cfg_if! {
 cfg_if! {
     if #[cfg(all(feature = "crossterm", not(feature = "termwiz"), not(feature = "termion")))] {
         pub type DefaultBackend = backend::CrosstermBackend;
-        type DefaultEvent = ratatui::crossterm::event::Event;
+        type DefaultEvent = crossterm::event::Event;
     } else if #[cfg(all(feature = "termwiz", not(feature = "crossterm"), not(feature = "termion")))] {
-        pub type DefaultBackend = ratatui::backend::TermwizBackend;
-        type DefaultEvent = ratatui::termwiz::input::InputEvent;
+        pub type DefaultBackend = ratatui_termwiz::TermwizBackend;
+        type DefaultEvent = termwiz::input::InputEvent;
     } else if #[cfg(all(feature = "termion", not(feature = "crossterm"), not(feature = "termwiz")))] {
         pub type DefaultBackend = backend::TermionBackend;
         type DefaultEvent = backend::termion::Event;
