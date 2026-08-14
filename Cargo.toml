@@ -1,6 +1,6 @@
 [package]
 name = "ratatui-elm"
-version = "1.2.1"
+version = "2.0.0"
 edition = "2024"
 authors = ["Devin Droddy <devin@justdeeevin.dev>"]
 license = "MIT"
@@ -11,18 +11,16 @@ keywords = ["tui", "elm", "framework", "ratatui"]
 categories = ["command-line-interface", "asynchronous"]
 
 [dependencies]
-ratatui = { version = "0.29.0", default-features = false, features = [
-  "underline-color",
-] }
-futures = { version = "0.3.31", default-features = false, features = [
-  "alloc",
+ratatui = { version = "0.30.2", default-features = false }
+futures = { version = "0.3.34", default-features = false, features = [
   "async-await",
+  "std",
 ] }
-crossterm = { version = "0.28.1", features = ["event-stream"], optional = true }
+crossterm = { version = "0.29.0", features = ["event-stream"], optional = true }
 cfg-if = "1.0.4"
-async-signal = { version = "0.2.13", optional = true }
+async-signal = { version = "0.2.14", optional = true }
 async-stream = { version = "0.3.6", optional = true }
-byor = { version = "1.0.0-beta.2", default-features = false, features = [
+byor = { version = "1.0.0", default-features = false, features = [
   "channel",
   "exec",
 ] }

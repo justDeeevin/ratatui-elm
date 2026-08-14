@@ -26,3 +26,12 @@ This crate works with all three officially supported ratatui backends:
 There is a cargo feature for each backend implementation. **These feature flags are not
 mutually exclusive**, though if you have only one enabled that backend will be used without
 manual specification.
+
+Similarly, this crate can be used with any async runtime that is integrated with [byor](https://docs.rs/byor). Three
+runtimes are provided:
+
+- [tokio](https://docs.rs/tokio)
+- [smol](https://docs.rs/smol)
+- [futures](https://docs.rs/futures)
+
+There are also features for each runtime that behave the same as the backend features.

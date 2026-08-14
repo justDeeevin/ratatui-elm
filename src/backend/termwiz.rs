@@ -1,5 +1,3 @@
-use std::{marker::PhantomData, pin::Pin};
-
 use byor::channel::mpsc::{RuntimeMpsc, UnboundedSender};
 use futures::{
     Stream, StreamExt,
@@ -15,13 +13,17 @@ use ratatui::{
         terminal::{Terminal as _, UnixTerminal, buffered::BufferedTerminal},
     },
 };
+use std::{marker::PhantomData, pin::Pin, task};
+
+type Result<T, E = <TermwizBackend as ratatui::backend::Backend>::Error> =
+    std::result::Result<T, E>;
+
 impl<R: RuntimeMpsc + Unpin> super::Backend<R> for TermwizBackend
 where
-    <R as RuntimeMpsc>::UnboundedReceiver<termwiz::Result<InputEvent>>: Send + 'static,
-    <R as RuntimeMpsc>::UnboundedSender<termwiz::Result<InputEvent>>: Send + 'static,
+    <R as RuntimeMpsc>::UnboundedReceiver<Result<InputEvent>>: Send + 'static,
+    <R as RuntimeMpsc>::UnboundedSender<Result<InputEvent>>: Send + 'static,
 {
     type Event = InputEvent;
-    type Error = termwiz::Error;
     type EventStream = TermwizEventStream<R>;
 
     fn init() -> Terminal<Self> {
@@ -76,14 +78,14 @@ impl super::Event for InputEvent {
 
 pub struct TermwizEventStream<R: RuntimeMpsc + Unpin> {
     #[allow(clippy::type_complexity)]
-    rx: Pin<Box<Fuse<R::UnboundedReceiver<termwiz::Result<InputEvent>>>>>,
+    rx: Pin<Box<Fuse<R::UnboundedReceiver<Result<InputEvent>>>>>,
     _marker: PhantomData<R>,
 }
 
 impl<R: RuntimeMpsc + Unpin> super::New for TermwizEventStream<R>
 where
-    <R as RuntimeMpsc>::UnboundedReceiver<termwiz::Result<InputEvent>>: Send + 'static,
-    <R as RuntimeMpsc>::UnboundedSender<termwiz::Result<InputEvent>>: Send + 'static,
+    <R as RuntimeMpsc>::UnboundedReceiver<Result<InputEvent>>: Send + 'static,
+    <R as RuntimeMpsc>::UnboundedSender<Result<InputEvent>>: Send + 'static,
 {
     fn new() -> Self {
         let (tx, rx) = R::unbounded_channel();
@@ -104,7 +106,7 @@ where
 
 impl<R: RuntimeMpsc + Unpin> FusedStream for TermwizEventStream<R>
 where
-    <R as RuntimeMpsc>::UnboundedReceiver<termwiz::Result<InputEvent>>: Send + 'static,
+    <R as RuntimeMpsc>::UnboundedReceiver<Result<InputEvent>>: Send + 'static,
 {
     fn is_terminated(&self) -> bool {
         self.rx.is_terminated()
@@ -113,14 +115,14 @@ where
 
 impl<R: RuntimeMpsc + Unpin> Stream for TermwizEventStream<R>
 where
-    <R as RuntimeMpsc>::UnboundedReceiver<termwiz::Result<InputEvent>>: Send + 'static,
+    <R as RuntimeMpsc>::UnboundedReceiver<Result<InputEvent>>: Send + 'static,
 {
-    type Item = termwiz::Result<InputEvent>;
+    type Item = Result<InputEvent>;
 
     fn poll_next(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
+        mut self: Pin<&mut Self>,
+        cx: &mut task::Context<'_>,
+    ) -> task::Poll<Option<Self::Item>> {
         self.rx.poll_next_unpin(cx)
     }
 }

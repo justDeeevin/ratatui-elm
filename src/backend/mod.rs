@@ -12,14 +12,14 @@ pub use termion::TermionBackend;
 #[cfg(feature = "termwiz")]
 mod termwiz;
 
+// TODO: termina
+
 use ratatui::Terminal;
 
 /// Some extra functionality that a backend must have for ratatui-elm to work.
-pub trait Backend<R>: ratatui::backend::Backend + Sized {
+pub trait Backend<Runtime>: ratatui::backend::Backend + Sized {
     /// The type of event that the backend produces.
     type Event: Event;
-    /// The type of error that the backend produces.
-    type Error: std::error::Error;
     /// An asynchronous stream of events.
     type EventStream: FusedStream + Stream<Item = Result<Self::Event, Self::Error>> + New + Unpin;
 
@@ -39,7 +39,7 @@ pub trait Event {
 
 /// Rewrite of [`Default`].
 ///
-/// This is only necessary because crossterm's impl of [`Backend::EventStream`] uses [`futures::stream::Fuse`], which doesn't provide a blanked `Default` impl. ☹️
+/// This is only necessary because crossterm's impl of [`Backend::EventStream`] uses [`futures::stream::Fuse`], which doesn't provide a blanket `Default` impl. ☹️
 pub trait New {
     fn new() -> Self;
 }

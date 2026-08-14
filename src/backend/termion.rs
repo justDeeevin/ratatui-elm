@@ -14,10 +14,13 @@ use ratatui::{
         terminal_size,
     },
 };
-use std::{io::Result, marker::PhantomData};
+use std::{io, marker::PhantomData, task};
 
 pub type TermionBackend =
-    ratatui::backend::TermionBackend<AlternateScreen<RawTerminal<std::io::Stdout>>>;
+    ratatui::backend::TermionBackend<AlternateScreen<RawTerminal<io::Stdout>>>;
+
+type Result<T, E = <TermionBackend as ratatui::backend::Backend>::Error> =
+    std::result::Result<T, E>;
 
 /// Termion events _or_ resize events.
 ///
@@ -34,11 +37,10 @@ where
     <R as RuntimeMpsc>::UnboundedSender<Result<TermionEvent>>: Send + 'static,
 {
     type Event = Event;
-    type Error = std::io::Error;
     type EventStream = TermionEventStream<R>;
 
     fn init() -> ratatui::Terminal<Self> {
-        let stdout = std::io::stdout()
+        let stdout = io::stdout()
             .into_raw_mode()
             .unwrap()
             .into_alternate_screen()
@@ -63,7 +65,7 @@ where
     fn new() -> Self {
         let (tx, rx) = R::unbounded_channel();
         std::thread::spawn(move || {
-            for event in std::io::stdin().events() {
+            for event in io::stdin().events() {
                 tx.send(event).unwrap();
             }
         });
@@ -90,8 +92,8 @@ impl<R: RuntimeMpsc + Unpin> Stream for TermionEventStream<R> {
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
+        cx: &mut task::Context<'_>,
+    ) -> task::Poll<Option<Self::Item>> {
         self.select.poll_next_unpin(cx)
     }
 }

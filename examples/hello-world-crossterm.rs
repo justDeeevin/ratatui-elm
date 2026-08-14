@@ -4,7 +4,7 @@ use ratatui::{
     text::Text,
     widgets::{Block, Borders},
 };
-use ratatui_elm::{Task, Tokio, Update, backend::CrosstermBackend};
+use ratatui_elm::{Task, runtime::Tokio, Update, backend::CrosstermBackend};
 
 fn main() {
     ratatui_elm::AppWithBackend::<Tokio, CrosstermBackend>::new(update, view)

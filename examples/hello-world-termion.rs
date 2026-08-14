@@ -4,7 +4,7 @@ use ratatui::{
     widgets::{Block, Borders},
 };
 use ratatui_elm::{
-    Task, Tokio, Update,
+    Task, runtime::Tokio, Update,
     backend::{TermionBackend, termion::Event},
 };
 

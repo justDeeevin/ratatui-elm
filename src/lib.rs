@@ -24,6 +24,15 @@
 //! There is a cargo feature for each backend implementation. **These feature flags are not
 //! mutually exclusive**, though if you have only one enabled that backend will be used without
 //! manual specification.
+//!
+//! Similarly, this crate can be used with any async runtime that is integrated with [byor]. Three
+//! runtimes are provided:
+//!
+//! - [tokio](https://docs.rs/tokio)
+//! - [smol](https://docs.rs/smol)
+//! - [futures](https://docs.rs/futures)
+//!
+//! There are also features for each runtime that behave the same as the backend features.
 
 pub mod backend;
 
@@ -204,20 +213,16 @@ impl<R: RuntimeExecutor + RuntimeMpsc, B: Backend<R>> AppWithBackend<R, B> {
     }
 }
 
-#[cfg(feature = "futures")]
-pub use byor::runtime::Futures;
-#[cfg(feature = "smol")]
-pub use byor::runtime::Smol;
-#[cfg(feature = "tokio")]
-pub use byor::runtime::Tokio;
+#[cfg(any(feature = "tokio", feature = "smol", feature = "futures"))]
+pub use byor::runtime;
 
 cfg_if! {
     if #[cfg(all(feature = "tokio", not(feature = "smol"), not(feature = "futures")))] {
-        pub type DefaultRuntime = Tokio;
+        pub type DefaultRuntime = runtime::Tokio;
     } else if #[cfg(all(feature = "smol", not(feature = "tokio"), not(feature = "futures")))] {
-        pub type DefaultRuntime = Smol;
+        pub type DefaultRuntime = runtime::Smol;
     } else if #[cfg(all(feature = "futures", not(feature = "tokio"), not(feature = "smol")))] {
-        pub type DefaultRuntime = Futures;
+        pub type DefaultRuntime = runtime::Futures;
     }
 }
 
@@ -278,14 +283,14 @@ where
     }
 
     /// Run the application.
-    pub fn run(self) -> std::io::Result<()> {
+    pub fn run(self) -> Result<(), B::Error> {
         let terminal = B::init();
         let res = self.executor.clone().block_on(self.run_inner(terminal));
         B::restore();
         res
     }
 
-    async fn run_inner(mut self, mut terminal: Terminal<B>) -> std::io::Result<()> {
+    async fn run_inner(mut self, mut terminal: Terminal<B>) -> Result<(), B::Error> {
         let subscriptions_tx = self.tx.clone();
         self.executor
             .spawn(async move {

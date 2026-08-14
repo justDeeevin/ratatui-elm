@@ -3,7 +3,7 @@ use ratatui::{
     crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers},
     text::{Line, Text},
 };
-use ratatui_elm::{AppWithBackend, Task, Tokio, Update, backend::CrosstermBackend};
+use ratatui_elm::{AppWithBackend, Task, Update, backend::CrosstermBackend, runtime::Tokio};
 
 fn main() {
     AppWithBackend::<Tokio, CrosstermBackend>::new(update, view)
