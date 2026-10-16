@@ -1,6 +1,6 @@
 [package]
 name = "ratatui-elm"
-version = "2.0.0"
+version = "2.0.1"
 edition = "2024"
 authors = ["Devin Droddy <devin@justdeeevin.dev>"]
 license = "MIT"
@@ -16,8 +16,8 @@ futures = { version = "0.3.34", default-features = false, features = [
   "async-await",
   "std",
 ] }
-cfg-if = "1.0.4"
-byor = { version = "1.0.0", default-features = false, features = [
+cfg-if = "1.0.5"
+byor = { version = "2.0.1", default-features = false, features = [
   "channel",
   "exec",
 ] }
